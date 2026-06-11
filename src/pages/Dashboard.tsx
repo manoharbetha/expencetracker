@@ -42,16 +42,17 @@ export const Dashboard = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const [d, e, g, nRes] = await Promise.all([
+        const results = await Promise.allSettled([
           analyticsService.getDashboard(),
           expenseService.list({ limit: 5 }),
           goalService.list(),
-          api.get('/notifications').catch(() => ({ data: [] })),
+          api.get('/notifications'),
         ]);
-        setDash(d);
-        setExpenses(e.items ?? []);
-        setGoals(g);
-        setNotifications(nRes.data);
+
+        if (results[0].status === 'fulfilled') setDash(results[0].value);
+        if (results[1].status === 'fulfilled') setExpenses(results[1].value.items ?? []);
+        if (results[2].status === 'fulfilled') setGoals(results[2].value);
+        if (results[3].status === 'fulfilled') setNotifications(results[3].value.data ?? []);
       } finally {
         setLoading(false);
       }

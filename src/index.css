@@ -59,8 +59,41 @@ a { color: inherit; text-decoration: none; }
     var(--gradient-glow);
 }
 
-.amount { font-family: 'JetBrains Mono', monospace; letter-spacing: 0; }
+.amount { font-family: 'JetBrains Mono', monospace; letter-spacing: 0; font-feature-settings: "tnum" on, "lnum" on; }
 .focus-ring:focus { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+
+/* 3D and Glowing Utilities */
+.perspective-1000 {
+  perspective: 1000px;
+}
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+.backface-hidden {
+  backface-visibility: hidden;
+}
+.glass-premium {
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+.shadow-glow-primary {
+  box-shadow: 0 0 40px -10px rgba(79, 70, 229, 0.4);
+}
+.shadow-glow-cyan {
+  box-shadow: 0 0 40px -10px rgba(6, 182, 212, 0.4);
+}
+.bg-grid-white {
+  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
 
 .recharts-tooltip-wrapper .recharts-default-tooltip {
   background: #131920 !important;

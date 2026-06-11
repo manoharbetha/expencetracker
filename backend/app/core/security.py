@@ -1,13 +1,13 @@
 from datetime import datetime, timedelta, timezone
 from bson import ObjectId
 import bcrypt
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from app.core.config import get_settings
 from app.db.mongodb import get_db
 
-bearer_scheme = HTTPBearer(auto_error=True)
+bearer_scheme = HTTPBearer(auto_error=False)
 
 def hash_password(password: str) -> str:
     salt = bcrypt.gensalt(rounds=12)
@@ -52,11 +52,19 @@ def serialize_user(doc: dict) -> dict:
         else str(doc.get("createdAt", doc.get("created_at", ""))),
     }
 
-async def get_current_user(creds: HTTPAuthorizationCredentials = Depends(bearer_scheme)) -> dict:
+async def get_current_user(request: Request, creds: HTTPAuthorizationCredentials = Depends(bearer_scheme)) -> dict:
+    token = request.cookies.get("fintell_token")
+    if not token and creds:
+        token = creds.credentials
+    
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+        
     try:
-        uid = decode_access_token(creds.credentials)
+        uid = decode_access_token(token)
     except ValueError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
+        
     if not ObjectId.is_valid(uid):
         raise HTTPException(status_code=401, detail="Invalid token payload")
     

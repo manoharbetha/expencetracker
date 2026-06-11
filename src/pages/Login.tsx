@@ -70,6 +70,7 @@ export const Login = () => {
             type="button"
             onClick={() => setShowPw(!showPw)}
             className="absolute right-3 top-9 text-secondary hover:text-primary transition"
+            aria-label={showPw ? "Hide password" : "Show password"}
           >
             {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </button>

@@ -1,10 +1,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { authService, type User } from '../services/authService';
+import api from '../services/api';
 
 interface AuthContextValue {
   user: User | null;
-  token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
@@ -16,29 +16,29 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(() => {
-    try {
-      const raw = localStorage.getItem('fintell_user');
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
-  });
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('fintell_token'));
-  const [isLoading, setIsLoading] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const persist = (u: User, t: string) => {
-    setUser(u);
-    setToken(t);
-    localStorage.setItem('fintell_user', JSON.stringify(u));
-    localStorage.setItem('fintell_token', t);
-  };
+  // Validate session on load
+  useEffect(() => {
+    const validateSession = async () => {
+      try {
+        const { data } = await api.get('/me');
+        setUser(data);
+      } catch (e) {
+        setUser(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    validateSession();
+  }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     try {
       const res = await authService.login(email, password);
-      persist(res.user, res.access_token);
+      setUser(res.user);
       toast.success(`Welcome back, ${res.user.name}!`);
     } finally {
       setIsLoading(false);
@@ -49,30 +49,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       const res = await authService.register(name, email, password, monthlyIncome);
-      persist(res.user, res.access_token);
+      setUser(res.user);
       toast.success(`Account created! Welcome, ${res.user.name}!`);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    try {
+      await api.post('/logout');
+    } catch (e) {
+      console.error(e);
+    }
     setUser(null);
-    setToken(null);
-    localStorage.removeItem('fintell_token');
-    localStorage.removeItem('fintell_user');
     toast.success('Logged out successfully');
     window.location.href = '/login';
   }, []);
 
   const updateUser = useCallback((u: User) => {
     setUser(u);
-    localStorage.setItem('fintell_user', JSON.stringify(u));
   }, []);
 
   return (
     <AuthContext.Provider
-      value={{ user, token, isAuthenticated: !!token && !!user, isLoading, login, register, logout, updateUser }}
+      value={{ user, isAuthenticated: !!user, isLoading, login, register, logout, updateUser }}
     >
       {children}
     </AuthContext.Provider>
