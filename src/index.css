@@ -1,0 +1,70 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-void: #030507;
+  --bg-base: #080b10;
+  --bg-card: #0d1117;
+  --bg-elevated: #131920;
+  --bg-hover: #1a2230;
+  --border-subtle: #1a2535;
+  --border-default: #243044;
+  --border-focus: #3b82f6;
+  --accent-blue: #3b82f6;
+  --accent-indigo: #6366f1;
+  --accent-violet: #8b5cf6;
+  --accent-emerald: #10b981;
+  --accent-rose: #f43f5e;
+  --accent-amber: #f59e0b;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-tertiary: #4a5568;
+  --gradient-ai: linear-gradient(135deg, #6366f1, #8b5cf6, #3b82f6);
+  --gradient-glow: radial-gradient(ellipse at top, #1a2035 0%, #030507 70%);
+}
+
+* { box-sizing: border-box; }
+html { background: var(--bg-void); }
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  color: var(--text-primary);
+  background: var(--bg-base);
+  font-family: 'DM Sans', sans-serif;
+}
+
+button, input, select, textarea { font: inherit; }
+button { cursor: pointer; }
+a { color: inherit; text-decoration: none; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #243044; border-radius: 24px; }
+::-webkit-scrollbar-track { background: #080b10; }
+
+.glass {
+  background: rgba(13, 17, 23, 0.8);
+  border: 1px solid rgba(255,255,255,0.06);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.03), 0 8px 40px rgba(0,0,0,0.5);
+}
+
+.mesh-bg {
+  background:
+    radial-gradient(circle at 20% 15%, rgba(59,130,246,0.24), transparent 28%),
+    radial-gradient(circle at 78% 18%, rgba(139,92,246,0.22), transparent 24%),
+    radial-gradient(circle at 50% 85%, rgba(16,185,129,0.12), transparent 26%),
+    var(--gradient-glow);
+}
+
+.amount { font-family: 'JetBrains Mono', monospace; letter-spacing: 0; }
+.focus-ring:focus { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  background: #131920 !important;
+  border: 1px solid #243044 !important;
+  border-radius: 8px;
+  color: #f1f5f9 !important;
+}
