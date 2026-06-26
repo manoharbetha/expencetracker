@@ -1,6 +1,7 @@
 from typing import List, Dict, Any
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Body
+import logging
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Body, Request
 
 from app.core.security import get_current_user
 from app.db.mongodb import get_db
@@ -8,20 +9,37 @@ from app.schemas import ExpenseCreate, MessageResponse
 from app.services.pdf_extractor import extract_transactions_from_pdf
 from app.services.ai_categorization import categorize_transactions_ai, summarize_import_ai
 from app.services.fcm_service import send_to_user
+from app.core.config import get_settings
+from app.core.rate_limiter import limiter, user_or_ip_limit_key
 
 router = APIRouter()
+logger = logging.getLogger("expencetracker")
 
 @router.post("/upload")
+@limiter.limit("10/minute", key_func=user_or_ip_limit_key)
 async def upload_statement(
+    request: Request,
     file: UploadFile = File(...),
     u: dict = Depends(get_current_user)
 ) -> Dict[str, Any]:
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
         
-    content = await file.read()
-    if not content:
-        raise HTTPException(status_code=400, detail="Empty file uploaded.")
+    if file.content_type != "application/pdf":
+        raise HTTPException(status_code=400, detail="Invalid file type. Only PDF files are supported.")
+        
+    try:
+        content = await file.read(10 * 1024 * 1024 + 1)
+        if len(content) > 10 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="File size exceeds the 10 MB limit.")
+            
+        if not content:
+            raise HTTPException(status_code=400, detail="Empty file uploaded.")
+            
+        if not content.startswith(b"%PDF-"):
+            raise HTTPException(status_code=400, detail="Invalid PDF file structure.")
+    finally:
+        await file.close()
         
     # Extract
     extraction_result = await extract_transactions_from_pdf(content)
@@ -30,11 +48,14 @@ async def upload_statement(
     # Filter out credits (income) for expense tracking
     expense_txns = [t for t in raw_txns if not t.get("is_credit", False)]
     
+    settings = get_settings()
     if not expense_txns:
-        return {
+        res = {
             "items": [], 
-            "message": "No expense transactions found.",
-            "debug": {
+            "message": "No expense transactions found."
+        }
+        if settings.app_env.lower() != "production":
+            res["debug"] = {
                 "Root Cause": "Parser pattern mismatch & AI Fallback failure",
                 "File Upload Status": f"Success: {file.filename} ({len(content)} bytes, {file.content_type})",
                 "PDF Read Status": f"Success: {extraction_result.get('pages_read', 0)} pages read, {extraction_result.get('text_length', 0)} text length",
@@ -45,7 +66,7 @@ async def upload_statement(
                 "Groq Status": "Failed or returned empty",
                 "Frontend Status": "Received empty items list"
             }
-        }
+        return res
         
     # Categorize via AI
     merchants = list(set([t["merchant"] for t in expense_txns]))
@@ -73,7 +94,7 @@ async def upload_statement(
             new_count += 1
             existing_hashes.add(t_hash) # prevent duplicates within the same PDF
         
-    return {
+    res = {
         "items": expense_txns,
         "message": f"Extracted {len(expense_txns)} transactions.",
         "statement_type": extraction_result.get("statement_type", "bank"),
@@ -82,15 +103,19 @@ async def upload_statement(
             "transactions_found": len(expense_txns),
             "new": new_count,
             "duplicate": dup_count
-        },
-        "debug": {
+        }
+    }
+    if settings.app_env.lower() != "production":
+        res["debug"] = {
             "source_detected": extraction_result.get("source"),
             "fallback_used": extraction_result.get("fallback_used")
         }
-    }
+    return res
 
 @router.post("/confirm")
+@limiter.limit("10/minute", key_func=user_or_ip_limit_key)
 async def confirm_statement(
+    request: Request,
     payload: Dict[str, Any] = Body(...),
     u: dict = Depends(get_current_user)
 ) -> Dict[str, Any]:

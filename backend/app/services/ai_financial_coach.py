@@ -1,8 +1,11 @@
 import json
 from datetime import datetime, timezone, timedelta
+import logging
 from groq import AsyncGroq
 from app.core.config import get_settings
 from app.services import build_ai_context
+
+logger = logging.getLogger("expencetracker")
 
 async def generate_dashboard_insights(db, user_id: str, user: dict, force_refresh: bool = False) -> dict:
     now = datetime.now(timezone.utc)
@@ -106,5 +109,5 @@ async def generate_dashboard_insights(db, user_id: str, user: dict, force_refres
         }
         
     except Exception as e:
-        print(f"AI Coach error: {e}")
+        logger.error(f"AI Coach error occurred: {e}")
         return {"financialHealthScore": {}, "potentialSavings": {}, "insights": []}

@@ -1,4 +1,5 @@
 from typing import Optional, Any, Dict
+import re
 from fastapi import APIRouter, Body, Depends
 from pymongo import DESCENDING
 from bson import ObjectId
@@ -46,7 +47,8 @@ async def list_expenses(
     if payment_method:
         query["paymentMethod"] = payment_method
     if search:
-        query["description"] = {"$regex": search, "$options": "i"}
+        escaped_search = re.escape(search[:100])
+        query["description"] = {"$regex": escaped_search, "$options": "i"}
     if start_date or end_date:
         date_filter: Dict[str, Any] = {}
         if start_date:

@@ -1,4 +1,6 @@
 from contextlib import asynccontextmanager
+import time
+import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -6,11 +8,20 @@ from jose import JWTError
 from pymongo.errors import PyMongoError
 
 from app.core.config import get_settings
-from app.db.mongodb import connect_to_mongo, close_mongo_connection
+from app.core.logging_config import setup_logging
+from app.core.rate_limiter import limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi import _rate_limit_exceeded_handler
+
+from app.db.mongodb import connect_to_mongo, close_mongo_connection, db_manager
 from app.core.scheduler import start_scheduler, stop_scheduler
 from app.services.fcm_service import initialize_firebase
 
 from app.api.endpoints import auth, expenses, goals, dashboard, ai, debts, notifications, statements, notepad, credit_card
+
+# Initialize logging before settings are created or validated
+setup_logging()
+logger = logging.getLogger("expencetracker")
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -24,6 +35,7 @@ async def lifespan(_app: FastAPI):
     await close_mongo_connection()
 
 settings = get_settings()
+startup_time = time.time()
 
 app = FastAPI(
     title=settings.app_name,
@@ -31,6 +43,9 @@ app = FastAPI(
     description="AI-powered personal finance tracker — Modular Production Ready.",
     lifespan=lifespan,
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,10 +55,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    if settings.app_env.lower() == "production":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; frame-ancestors 'none'; object-src 'none';"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    return response
+
 # Exception Handlers
 @app.exception_handler(PyMongoError)
 async def mongo_err(_req: Request, exc: PyMongoError) -> JSONResponse:
-    print(f"MongoDB error: {exc}")
+    logger.error(f"Database error occurred: {type(exc).__name__}")
     return JSONResponse(status_code=503, content={"detail": "Database error. Please try again."})
 
 @app.exception_handler(JWTError)
@@ -52,16 +79,29 @@ async def jwt_err(_req: Request, _exc: JWTError) -> JSONResponse:
 
 @app.exception_handler(Exception)
 async def generic_err(_req: Request, exc: Exception) -> JSONResponse:
-    # Allow HTTPException to pass through cleanly
     if hasattr(exc, "status_code"):
         return JSONResponse(status_code=exc.status_code, content={"detail": getattr(exc, "detail", "Error")})
-    print(f"Unhandled error: {type(exc).__name__}: {exc}")
+    logger.error(f"Unhandled error occurred: {type(exc).__name__}", exc_info=True)
     return JSONResponse(status_code=500, content={"detail": "Internal server error."})
 
 # Health
 @app.get("/health", tags=["System"])
 async def health() -> dict:
-    return {"status": "ok", "service": "Expence Tracker API", "version": "4.0.0"}
+    db_status = "disconnected"
+    try:
+        if db_manager.client is not None:
+            await db_manager.client.admin.command('ping')
+            db_status = "connected"
+    except Exception as e:
+        db_status = f"error: {str(e)}"
+        
+    return {
+        "status": "ok" if db_status == "connected" else "error",
+        "database": db_status,
+        "service": "Expence Tracker API",
+        "version": "4.0.0",
+        "uptime": round(time.time() - startup_time, 2)
+    }
 
 # Routers
 # Routers

@@ -1,6 +1,7 @@
 import io
 import json
 from typing import List, Dict, Any
+import logging
 import pdfplumber
 from groq import AsyncGroq
 
@@ -8,6 +9,8 @@ from app.core.config import get_settings
 from app.services.statement_detector import detect_statement_source, detect_statement_type
 from app.services.parsers.generic_parser import GenericParser
 from app.services.parsers.googlepay_parser import GooglePayParser
+
+logger = logging.getLogger("expencetracker")
 
 async def extract_transactions_from_pdf(file_bytes: bytes) -> Dict[str, Any]:
     """
@@ -41,7 +44,7 @@ async def extract_transactions_from_pdf(file_bytes: bytes) -> Dict[str, Any]:
                 
             transactions = parser.extract()
     except Exception as e:
-        print(f"Parser error: {e}")
+        logger.error(f"Parser error occurred: {e}")
         
     # 3. AI Fallback if Parser fails
     fallback_used = False
@@ -90,7 +93,7 @@ async def extract_cc_details_with_ai(text_chunk: str) -> Dict[str, Any]:
         if content:
             return json.loads(content)
     except Exception as e:
-        print(f"Groq CC extraction failed: {e}")
+        logger.error(f"Groq CC extraction failed: {e}")
     return {}
 
 async def extract_with_ai_fallback(text_chunk: str) -> List[Dict[str, Any]]:
@@ -139,6 +142,6 @@ async def extract_with_ai_fallback(text_chunk: str) -> List[Dict[str, Any]]:
                 data = json.loads(content)
                 all_transactions.extend(data.get("transactions", []))
         except Exception as e:
-            print(f"Groq fallback failed for chunk: {e}")
+            logger.error(f"Groq fallback failed for chunk: {e}")
             
     return all_transactions

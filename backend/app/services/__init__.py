@@ -1,8 +1,11 @@
 from datetime import date
 from math import ceil
 from typing import Any, Dict
+import logging
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.core.config import get_settings
+
+logger = logging.getLogger("expencetracker")
 
 def calculate_goal_metrics(target: float, saved: float, deadline_raw: Any) -> Dict[str, Any]:
     remaining = max(target - saved, 0.0)
@@ -57,7 +60,7 @@ async def generate_ai_response(prompt: str) -> str:
         )
         return chat_completion.choices[0].message.content or _FALLBACK
     except Exception as exc:
-        print(f"Groq error: {exc}")
+        logger.error(f"Groq error occurred in generate_ai_response: {exc}")
         return _FALLBACK
 
 async def build_ai_context(db: AsyncIOMotorDatabase, uid: str, user: dict) -> str:
@@ -68,15 +71,28 @@ async def build_ai_context(db: AsyncIOMotorDatabase, uid: str, user: dict) -> st
     if not cards:
         cards = await db.credit_cards.find({"userId": uid}).to_list(20)
 
+    # Clean expenses to send only necessary transaction information to AI
+    cleaned_expenses = []
     for item in expenses:
-        item["_id"] = str(item["_id"])
-        item.pop("user_id", None)
+        cleaned_expenses.append({
+            "merchant": item.get("merchant", ""),
+            "amount": float(item.get("amount", 0)),
+            "category": item.get("category", "Other"),
+            "date": item.get("date", ""),
+            "paymentSource": item.get("paymentMethod", item.get("paymentSource", "Unknown"))
+        })
+
+    # Sanitize other collections to remove sensitive DB IDs or user IDs
     for item in goals:
-        item["_id"] = str(item["_id"])
+        item.pop("_id", None)
         item.pop("user_id", None)
     for item in debts:
-        item["_id"] = str(item["_id"])
+        item.pop("_id", None)
         item.pop("user_id", None)
+    for item in cards:
+        item.pop("_id", None)
+        item.pop("user_id", None)
+        item.pop("userId", None)
 
     income = user.get("monthlyIncome", 0)
     currency = user.get("currency", "INR")
@@ -108,5 +124,5 @@ async def build_ai_context(db: AsyncIOMotorDatabase, uid: str, user: dict) -> st
         f"Goal details: {'; '.join(goal_details) if goal_details else 'None'}. "
         f"Debt details: {'; '.join(debt_details) if debt_details else 'None'}. "
         f"Credit Cards: {'; '.join(cc_details) if cc_details else 'None'}. "
-        f"Recent expenses (latest 30): {expenses[:15]}. "
+        f"Recent expenses (latest 30): {cleaned_expenses[:15]}. "
     )

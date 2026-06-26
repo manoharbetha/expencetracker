@@ -1,9 +1,12 @@
 from datetime import datetime, timezone, date, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import logging
 from app.db.mongodb import get_db
 from app.services.fcm_service import send_to_user
 from groq import AsyncGroq
 from app.core.config import get_settings
+
+logger = logging.getLogger("expencetracker")
 
 scheduler = AsyncIOScheduler()
 
@@ -41,7 +44,7 @@ async def generate_daily_ai_insight(user_id: str, db):
         insight = completion.choices[0].message.content.strip()
         await send_to_user(user_id, "🤖 Daily Financial Insight", insight, "ai")
     except Exception as e:
-        print(f"Failed to generate AI insight for {user_id}: {e}")
+        logger.error(f"Failed to generate AI insight for {user_id}: {e}")
 
 async def check_budget_limit(user_id: str, monthly_income: float, db):
     if monthly_income <= 0: return
@@ -57,7 +60,7 @@ async def check_budget_limit(user_id: str, monthly_income: float, db):
         await send_to_user(user_id, "Budget Alert", f"⚠ You have utilized {pct}% of your monthly income (₹{total_spent}).", "budget")
 
 async def run_daily_jobs():
-    print("[Scheduler] Running daily jobs...")
+    logger.info("[Scheduler] Running daily jobs...")
     db = get_db()
     today = date.today()
     

@@ -1,7 +1,10 @@
 import json
 from typing import List, Dict, Any
+import logging
 from groq import AsyncGroq
 from app.core.config import get_settings
+
+logger = logging.getLogger("expencetracker")
 
 async def categorize_transactions_ai(merchants: List[str]) -> Dict[str, str]:
     """
@@ -49,7 +52,7 @@ async def categorize_transactions_ai(merchants: List[str]) -> Dict[str, str]:
         mapping = json.loads(content)
         return mapping
     except Exception as e:
-        print(f"AI Categorization error: {e}")
+        logger.error(f"AI Categorization error occurred: {e}")
         return {m: "Other" for m in merchants}
 
 async def summarize_import_ai(transactions: List[Dict[str, Any]]) -> str:
