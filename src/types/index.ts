@@ -10,6 +10,7 @@ export interface Expense {
   category: Category;
   amount: number;
   method: PaymentMethod;
+  creditCardId?: string;
 }
 
 export interface Goal {
@@ -75,5 +76,11 @@ export interface CreditCard {
     message: string;
   }>;
   daysUntilDue: number;
+  bankName?: string;
+  outstanding?: number;
+  availableLimit?: number;
+  minimumDue?: number;
+  statementDate?: string;
+  lastImported?: string;
 }
 

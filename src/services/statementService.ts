@@ -8,8 +8,8 @@ export const statementService = {
     });
     return data;
   },
-  async confirm(transactions: any[]): Promise<any> {
-    const { data } = await api.post('/statements/confirm', transactions);
+  async confirm(payload: any): Promise<any> {
+    const { data } = await api.post('/statements/confirm', payload);
     return data;
   }
 };

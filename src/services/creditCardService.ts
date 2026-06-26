@@ -6,11 +6,17 @@ export interface CreditCardCreatePayload {
   creditLimit: number;
   billingDate: number;
   dueDate: number;
+  bankName?: string;
+  outstanding?: number;
+  availableLimit?: number;
+  minimumDue?: number;
+  statementDate?: string;
+  lastImported?: string;
 }
 
 export const creditCardService = {
-  async get(): Promise<CreditCard | null> {
-    const { data } = await api.get<CreditCard | null>('/credit-card');
+  async list(): Promise<CreditCard[]> {
+    const { data } = await api.get<CreditCard[]>('/credit-card');
     return data;
   },
 

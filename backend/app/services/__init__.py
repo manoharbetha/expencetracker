@@ -64,6 +64,9 @@ async def build_ai_context(db: AsyncIOMotorDatabase, uid: str, user: dict) -> st
     expenses = await db.expenses.find({"user_id": uid}).sort("date", -1).limit(30).to_list(30)
     goals = await db.goals.find({"user_id": uid}).to_list(20)
     debts = await db.debts.find({"user_id": uid}).to_list(20)
+    cards = await db.credit_cards.find({"user_id": uid}).to_list(20)
+    if not cards:
+        cards = await db.credit_cards.find({"userId": uid}).to_list(20)
 
     for item in expenses:
         item["_id"] = str(item["_id"])
@@ -90,6 +93,10 @@ async def build_ai_context(db: AsyncIOMotorDatabase, uid: str, user: dict) -> st
         f"{d.get('title','Debt')} ({d.get('type', 'borrowed')}): {currency} {d.get('amount',0):.0f} @ {d.get('interestRate',0)}% interest, EMI {currency} {d.get('emi',0):.0f}, due {d.get('dueDate','?')}"
         for d in debts
     ]
+    cc_details = [
+        f"Card: {c.get('cardName', 'CC')} - Limit: {c.get('creditLimit', 0)}, Outstanding: {c.get('outstanding', 0)}, Due Date: Day {c.get('dueDate', 1)} of month."
+        for c in cards
+    ]
 
     return (
         "You are Expence Tracker, an empathetic, practical, India-focused personal finance AI. "
@@ -100,5 +107,6 @@ async def build_ai_context(db: AsyncIOMotorDatabase, uid: str, user: dict) -> st
         f"Goals: {len(goals)} active, {currency} {total_saved_goals:,.0f} saved of {currency} {total_target_goals:,.0f} target. "
         f"Goal details: {'; '.join(goal_details) if goal_details else 'None'}. "
         f"Debt details: {'; '.join(debt_details) if debt_details else 'None'}. "
+        f"Credit Cards: {'; '.join(cc_details) if cc_details else 'None'}. "
         f"Recent expenses (latest 30): {expenses[:15]}. "
     )

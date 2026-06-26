@@ -68,20 +68,26 @@ async def dashboard(u: dict = Depends(get_current_user)) -> dict:
 
     # Credit Card metrics and insights
     cc_data = None
-    card = await db.credit_cards.find_one({"userId": uid})
-    if card:
-        # 1. Dynamic currentUsage calculation
+    cards = await db.credit_cards.find({"user_id": uid}).to_list(100)
+    # backward compatibility
+    if not cards:
+        cards = await db.credit_cards.find({"userId": uid}).to_list(100)
+        
+    if cards:
+        total_limit = sum(float(c.get("creditLimit", 0)) for c in cards)
+        total_outstanding = sum(float(c.get("outstanding", 0)) for c in cards)
+        total_available = sum(float(c.get("availableLimit", c.get("creditLimit", 0))) for c in cards)
+        total_min_due = sum(float(c.get("minimumDue", 0)) for c in cards)
+        
         pipeline = [
             {"$match": {"user_id": uid, "paymentMethod": "Credit Card"}},
             {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
         ]
         res_agg = await db.expenses.aggregate(pipeline).to_list(1)
         current_usage = float(res_agg[0]["total"]) if res_agg else 0.0
-        limit = float(card.get("creditLimit", 0.0))
-        available = max(0.0, limit - current_usage)
-        utilization = (current_usage / limit * 100) if limit > 0 else 0.0
+        
+        utilization = (current_usage / total_limit * 100) if total_limit > 0 else 0.0
 
-        # 2. Credit Health Score out of 100
         if utilization <= 30:
             score = 100 - (utilization / 30) * 10
             status = "Excellent"
@@ -137,27 +143,34 @@ async def dashboard(u: dict = Depends(get_current_user)) -> dict:
         elif utilization >= 70:
             insights.append({"type": "warning", "icon": "⚠️", "message": "You have crossed 70% utilization."})
         
-        # Due Date check
-        due_day = int(card.get("dueDate", 1))
-        try:
-            due_this_month = today_dt.replace(day=due_day)
-        except ValueError:
-            due_this_month = today_dt.replace(day=28)
-            
-        if today_dt.day <= due_day:
-            next_due = due_this_month
-        else:
-            if today_dt.month == 12:
-                next_due = date(today_dt.year + 1, 1, due_day)
+        # Determine nearest due date among all cards
+        closest_due_date = None
+        min_days_left = 999
+        for c in cards:
+            due_day = int(c.get("dueDate", 1))
+            try:
+                due_this_month = today_dt.replace(day=due_day)
+            except ValueError:
+                due_this_month = today_dt.replace(day=28)
+                
+            if today_dt.day <= due_day:
+                next_due = due_this_month
             else:
-                try:
-                    next_due = date(today_dt.year, today_dt.month + 1, due_day)
-                except ValueError:
-                    next_due = date(today_dt.year, today_dt.month + 1, 28)
-                    
-        days_left = (next_due - today_dt).days
-        if 0 <= days_left <= 3 and current_usage > 0:
-            insights.append({"type": "warning", "icon": "⚠️", "message": f"Your bill is due in {days_left} days."})
+                if today_dt.month == 12:
+                    next_due = date(today_dt.year + 1, 1, due_day)
+                else:
+                    try:
+                        next_due = date(today_dt.year, today_dt.month + 1, due_day)
+                    except ValueError:
+                        next_due = date(today_dt.year, today_dt.month + 1, 28)
+                        
+            d_left = (next_due - today_dt).days
+            if d_left < min_days_left:
+                min_days_left = d_left
+                closest_due_date = due_day
+                
+        if 0 <= min_days_left <= 3 and total_outstanding > 0:
+            insights.append({"type": "warning", "icon": "⚠️", "message": f"A bill is due in {min_days_left} days."})
 
         # Category check
         top_cat_agg = await db.expenses.aggregate([
@@ -174,8 +187,8 @@ async def dashboard(u: dict = Depends(get_current_user)) -> dict:
             insights.append({"type": "warning", "icon": "📈", "message": "Credit card spending increased compared to last month."})
 
         # Available credit check
-        if available > 0:
-            insights.append({"type": "info", "icon": "💡", "message": f"You have ₹{available:,.2f} remaining credit available."})
+        if total_available > 0:
+            insights.append({"type": "info", "icon": "💡", "message": f"You have ₹{total_available:,.2f} total credit available."})
 
         # Tip
         if utilization >= 50:
@@ -186,21 +199,23 @@ async def dashboard(u: dict = Depends(get_current_user)) -> dict:
             insights.append({"type": "success", "icon": "✅", "message": "Credit utilization is healthy."})
 
         cc_data = {
-            "id": str(card["_id"]),
-            "cardName": card.get("cardName", ""),
-            "creditLimit": limit,
+            "id": "aggregate",
+            "cardName": f"{len(cards)} Cards",
+            "creditLimit": total_limit,
             "currentUsage": round(current_usage, 2),
-            "availableCredit": round(available, 2),
+            "availableCredit": round(total_available, 2),
+            "outstanding": round(total_outstanding, 2),
+            "minimumDue": round(total_min_due, 2),
             "utilizationPercentage": round(utilization, 2),
-            "billingDate": int(card.get("billingDate", 1)),
-            "dueDate": int(card.get("dueDate", 1)),
+            "billingDate": 1,
+            "dueDate": closest_due_date or 1,
             "monthlySpending": round(monthly_cc_spending, 2),
             "prevMonthlySpending": round(prev_monthly_cc_spending, 2),
             "spendingTrendPercentage": round(spending_trend_pct, 2),
             "healthScore": score,
             "healthStatus": status,
             "insights": insights,
-            "daysUntilDue": days_left
+            "daysUntilDue": min_days_left if min_days_left != 999 else 0
         }
 
     return {

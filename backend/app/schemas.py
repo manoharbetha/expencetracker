@@ -67,6 +67,7 @@ class ExpenseCreate(BaseModel):
     description: str = Field(..., min_length=1, max_length=200)
     paymentMethod: PaymentMethod
     date: date
+    creditCardId: Optional[str] = None
 
     @field_validator("amount")
     @classmethod
@@ -81,6 +82,7 @@ class ExpenseUpdate(BaseModel):
     description: Optional[str] = Field(default=None, min_length=1, max_length=200)
     paymentMethod: Optional[PaymentMethod] = None
     date: Optional[date] = None
+    creditCardId: Optional[str] = None
 
 # Goal Schemas
 class GoalCreate(BaseModel):
@@ -152,6 +154,12 @@ class CreditCardCreate(BaseModel):
     creditLimit: float = Field(..., gt=0)
     billingDate: int = Field(..., ge=1, le=31)
     dueDate: int = Field(..., ge=1, le=31)
+    bankName: Optional[str] = None
+    availableLimit: Optional[float] = None
+    outstanding: Optional[float] = None
+    minimumDue: Optional[float] = None
+    statementDate: Optional[str] = None
+    lastImported: Optional[str] = None
 
 class CreditCardResponse(BaseModel):
     id: str
@@ -161,6 +169,12 @@ class CreditCardResponse(BaseModel):
     billingDate: int
     dueDate: int
     createdAt: str
+    bankName: Optional[str] = None
+    availableLimit: Optional[float] = None
+    outstanding: Optional[float] = None
+    minimumDue: Optional[float] = None
+    statementDate: Optional[str] = None
+    lastImported: Optional[str] = None
 
 # Shared
 class MessageResponse(BaseModel):

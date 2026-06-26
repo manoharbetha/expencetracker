@@ -6,6 +6,7 @@ export interface Expense {
   category: 'Food' | 'Travel' | 'Shopping' | 'Bills' | 'Education' | 'Entertainment' | 'Health' | 'Other';
   description: string;
   paymentMethod: 'UPI' | 'Credit Card' | 'Cash' | 'Debit Card' | 'Net Banking';
+  creditCardId?: string;
   date: string;
   createdAt?: string;
   updatedAt?: string;
@@ -16,6 +17,7 @@ export interface ExpenseCreate {
   category: string;
   description: string;
   paymentMethod: string;
+  creditCardId?: string;
   date: string;
 }
 

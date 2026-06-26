@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { CreditCard as CardIcon, Save, Calendar, Landmark } from 'lucide-react';
+import { CreditCard as CardIcon, Save, Plus, Landmark, Calendar, AlertCircle } from 'lucide-react';
 import { creditCardService, type CreditCardCreatePayload } from '../services/creditCardService';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatDate } from '../utils/formatters';
+import type { CreditCard } from '../types';
 
 export const CreditCardPage = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [isEdit, setIsEdit] = useState(false);
+  const [cards, setCards] = useState<CreditCard[]>([]);
+  const [showForm, setShowForm] = useState(false);
   
   const [form, setForm] = useState<CreditCardCreatePayload>({
     cardName: '',
@@ -18,28 +20,21 @@ export const CreditCardPage = () => {
     dueDate: 5,
   });
 
-  const fetchCard = async () => {
+  const fetchCards = async () => {
     setLoading(true);
     try {
-      const card = await creditCardService.get();
-      if (card) {
-        setForm({
-          cardName: card.cardName,
-          creditLimit: card.creditLimit,
-          billingDate: card.billingDate,
-          dueDate: card.dueDate,
-        });
-        setIsEdit(true);
-      }
+      const data = await creditCardService.list();
+      setCards(data || []);
     } catch (e) {
       console.error(e);
+      toast.error('Failed to load credit cards');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchCard();
+    fetchCards();
   }, []);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -52,20 +47,14 @@ export const CreditCardPage = () => {
       toast.error('Credit Limit must be greater than 0');
       return;
     }
-    if (form.billingDate < 1 || form.billingDate > 31) {
-      toast.error('Billing date must be between 1 and 31');
-      return;
-    }
-    if (form.dueDate < 1 || form.dueDate > 31) {
-      toast.error('Due date must be between 1 and 31');
-      return;
-    }
 
     setSaving(true);
     try {
       await creditCardService.upsert(form);
-      toast.success(isEdit ? 'Credit Card updated' : 'Credit Card configured');
-      setIsEdit(true);
+      toast.success('Credit Card saved successfully');
+      setShowForm(false);
+      setForm({ cardName: '', creditLimit: 50000, billingDate: 15, dueDate: 5 });
+      fetchCards();
     } catch (err: any) {
       toast.error(err.response?.data?.detail || 'Failed to save configuration');
     } finally {
@@ -73,7 +62,7 @@ export const CreditCardPage = () => {
     }
   };
 
-  if (loading) {
+  if (loading && cards.length === 0) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue border-t-transparent" />
@@ -82,97 +71,39 @@ export const CreditCardPage = () => {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <div>
-        <h1 className="font-display text-3xl font-extrabold">Credit Card Tracker</h1>
-        <p className="text-secondary">Set up and manage your credit limit, billing cycles, and AI insights.</p>
+    <div className="mx-auto max-w-6xl space-y-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="font-display text-3xl font-extrabold">Credit Cards</h1>
+          <p className="text-secondary mt-1">Manage your credit cards, limits, and statement cycles.</p>
+        </div>
+        <Button onClick={() => setShowForm(!showForm)} icon={showForm ? undefined : <Plus className="h-4 w-4" />}>
+          {showForm ? 'Cancel' : 'Add New Card'}
+        </Button>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Left Side: Real-time Glassmorphic Credit Card Preview */}
-        <div className="flex flex-col items-center justify-center space-y-4">
-          <p className="w-full text-left text-sm font-bold uppercase tracking-wider text-tertiary">Real-time Card Preview</p>
-          
-          <div className="relative aspect-[1.586/1] w-full overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-indigo-900/60 via-purple-900/50 to-slate-900/80 p-6 shadow-2xl backdrop-blur-xl transition-all duration-300 hover:shadow-glow-primary">
-            {/* Card Glass Sheen Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-white/10 opacity-30 pointer-events-none" />
-            
-            {/* Card Content Layout */}
-            <div className="flex h-full flex-col justify-between text-white">
-              {/* Chip & Branding */}
-              <div className="flex items-center justify-between">
-                {/* Simulated EMV Chip */}
-                <div className="h-9 w-12 rounded bg-gradient-to-r from-amber-400/90 to-yellow-500/80 p-1 opacity-80 shadow-inner">
-                  <div className="h-full w-full rounded-sm border border-amber-600/30 grid grid-cols-3 grid-rows-3" />
-                </div>
-                {/* Branding Icon */}
-                <div className="flex items-center gap-2">
-                  <Landmark className="h-6 w-6 text-white/80" />
-                  <span className="font-display text-sm font-bold tracking-widest uppercase text-white/90">FINTELL</span>
-                </div>
-              </div>
-
-              {/* Card Limit Display */}
-              <div className="space-y-1">
-                <p className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold">Credit Limit</p>
-                <p className="font-mono text-2xl font-bold tracking-wider">{formatCurrency(form.creditLimit || 0)}</p>
-              </div>
-
-              {/* Card Name & Cycle Dates */}
-              <div className="flex items-center justify-between border-t border-white/5 pt-3">
-                <div>
-                  <p className="text-[9px] uppercase tracking-widest text-slate-400 font-semibold">Card Name</p>
-                  <p className="truncate text-sm font-bold tracking-wide text-white/90 max-w-[180px]">
-                    {form.cardName || 'YOUR CREDIT CARD'}
-                  </p>
-                </div>
-                
-                <div className="flex gap-4 text-right">
-                  <div>
-                    <p className="text-[9px] uppercase tracking-widest text-slate-400 font-semibold">Bill Day</p>
-                    <p className="font-mono text-xs font-bold text-white/90">{form.billingDate || '–'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[9px] uppercase tracking-widest text-slate-400 font-semibold">Due Day</p>
-                    <p className="font-mono text-xs font-bold text-white/90">{form.dueDate || '–'}</p>
-                  </div>
-                </div>
-              </div>
+      {showForm && (
+        <section className="glass rounded-card p-6 animate-in slide-in-from-top-4 fade-in">
+          <h2 className="mb-4 text-lg font-bold">Configure New Credit Card</h2>
+          <form onSubmit={handleSave} className="grid gap-6 md:grid-cols-2">
+            <div className="space-y-4">
+              <Input
+                label="Credit Card Name"
+                placeholder="e.g. HDFC Millennia"
+                value={form.cardName}
+                onChange={(e) => setForm({ ...form, cardName: e.target.value })}
+                required
+              />
+              <Input
+                label="Credit Limit (₹)"
+                type="number"
+                placeholder="e.g. 100000"
+                value={form.creditLimit || ''}
+                onChange={(e) => setForm({ ...form, creditLimit: Number(e.target.value) })}
+                required
+              />
             </div>
-          </div>
-
-          {/* Secure details disclaimer */}
-          <div className="flex items-start gap-3 rounded-lg border border-blue/10 bg-blue/5 p-4 text-xs text-secondary">
-            <CardIcon className="mt-0.5 h-4 w-4 shrink-0 text-blue" />
-            <p>
-              <strong>Privacy First:</strong> We do NOT collect your card number, CVV, expiry date, PIN, or banking passwords. Tracking is fully manual and secure.
-            </p>
-          </div>
-        </div>
-
-        {/* Right Side: Setup Form */}
-        <section className="glass rounded-card p-6">
-          <h2 className="mb-4 text-lg font-bold">{isEdit ? 'Update Credit Card Settings' : 'Configure Credit Card'}</h2>
-          
-          <form onSubmit={handleSave} className="space-y-4">
-            <Input
-              label="Credit Card Name"
-              placeholder="e.g. HDFC Millennia, ICICI Amazon Pay"
-              value={form.cardName}
-              onChange={(e) => setForm({ ...form, cardName: e.target.value })}
-              required
-            />
-
-            <Input
-              label="Credit Limit (₹)"
-              type="number"
-              placeholder="e.g. 100000"
-              value={form.creditLimit || ''}
-              onChange={(e) => setForm({ ...form, creditLimit: Number(e.target.value) })}
-              required
-            />
-
-            <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-4">
               <div>
                 <label className="mb-1 block text-sm font-medium text-secondary">Billing Date</label>
                 <select
@@ -185,7 +116,6 @@ export const CreditCardPage = () => {
                   ))}
                 </select>
               </div>
-
               <div>
                 <label className="mb-1 block text-sm font-medium text-secondary">Due Date</label>
                 <select
@@ -199,18 +129,103 @@ export const CreditCardPage = () => {
                 </select>
               </div>
             </div>
-
-            <Button
-              type="submit"
-              className="w-full mt-2"
-              icon={<Save className="h-4 w-4" />}
-              disabled={saving}
-            >
-              {saving ? 'Saving…' : isEdit ? 'Update Settings' : 'Save Configuration'}
-            </Button>
+            <div className="col-span-full mt-4 flex justify-end">
+              <Button type="submit" icon={<Save className="h-4 w-4" />} disabled={saving}>
+                {saving ? 'Saving...' : 'Save Configuration'}
+              </Button>
+            </div>
           </form>
         </section>
-      </div>
+      )}
+
+      {cards.length === 0 && !showForm ? (
+        <div className="flex h-64 flex-col items-center justify-center rounded-card border border-dashed border-default bg-card/50 text-center">
+          <CardIcon className="mb-4 h-12 w-12 text-secondary opacity-50" />
+          <h3 className="text-lg font-bold">No Credit Cards Found</h3>
+          <p className="mt-2 text-sm text-secondary max-w-md">
+            Add a credit card to track usage, monitor outstanding balances, and import statements directly.
+          </p>
+          <Button className="mt-6" onClick={() => setShowForm(true)}>Add Your First Card</Button>
+        </div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
+          {cards.map((card) => {
+            const usagePercent = card.creditLimit > 0 ? (card.currentUsage / card.creditLimit) * 100 : 0;
+            const outstanding = card.outstanding ?? card.currentUsage;
+            const availableLimit = card.availableLimit ?? (card.creditLimit - card.currentUsage);
+
+            return (
+              <div key={card.id} className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-6 shadow-xl text-white group">
+                <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                
+                <div className="relative z-10 flex flex-col h-full justify-between space-y-6">
+                  {/* Header */}
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-display text-xl font-bold tracking-wide">{card.cardName}</h3>
+                      <p className="text-sm text-slate-400 font-medium flex items-center gap-1 mt-1">
+                        <Landmark className="h-3 w-3" />
+                        {card.bankName || 'Unknown Bank'}
+                      </p>
+                    </div>
+                    <div className="h-8 w-12 rounded bg-gradient-to-r from-amber-400/80 to-yellow-600/80 p-1 opacity-90 shadow-inner">
+                      <div className="h-full w-full rounded-sm border border-amber-600/30 grid grid-cols-3 grid-rows-3" />
+                    </div>
+                  </div>
+
+                  {/* Limit & Outstanding */}
+                  <div className="grid grid-cols-2 gap-4 border-y border-white/10 py-4">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold mb-1">Total Limit</p>
+                      <p className="font-mono text-xl font-bold">{formatCurrency(card.creditLimit)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold mb-1">Available Limit</p>
+                      <p className="font-mono text-xl font-bold text-emerald-400">{formatCurrency(availableLimit)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold mb-1">Current Usage</p>
+                      <p className="font-mono text-lg font-bold text-rose-300">{formatCurrency(card.currentUsage)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold mb-1">Outstanding</p>
+                      <p className="font-mono text-lg font-bold text-rose-400">{formatCurrency(outstanding)}</p>
+                    </div>
+                  </div>
+
+                  {/* Usage Bar */}
+                  <div>
+                    <div className="flex justify-between text-xs mb-2">
+                      <span className="text-slate-300">Usage Progress</span>
+                      <span className="font-bold">{usagePercent.toFixed(1)}%</span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                      <div
+                        className={`h-full rounded-full transition-all duration-1000 ${
+                          usagePercent > 80 ? 'bg-rose-500' : usagePercent > 50 ? 'bg-amber-400' : 'bg-emerald-400'
+                        }`}
+                        style={{ width: `${Math.min(usagePercent, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Dates Footer */}
+                  <div className="flex items-center justify-between text-xs text-slate-400 pt-2">
+                    <div className="flex flex-col gap-1">
+                      <span className="flex items-center gap-1"><Calendar className="h-3 w-3"/> Statement: {card.statementDate ? formatDate(card.statementDate) : `Day ${card.billingDate}`}</span>
+                      <span className="flex items-center gap-1"><AlertCircle className="h-3 w-3"/> Min Due: {formatCurrency(card.minimumDue || 0)}</span>
+                    </div>
+                    <div className="flex flex-col gap-1 text-right">
+                      <span className="font-semibold text-rose-300">Due: {card.dueDate ? `Day ${card.dueDate}` : '-'}</span>
+                      <span className="text-[10px]">Imported: {card.lastImported ? formatDate(card.lastImported) : 'Never'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
