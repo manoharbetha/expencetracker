@@ -59,7 +59,7 @@ async def login(request: Request, response: Response, user_data: UserLogin = Bod
         key="fintell_token",
         value=token,
         httponly=True,
-        samesite="lax",
+        samesite="none" if settings.app_env.lower() == "production" else "lax",
         secure=settings.app_env.lower() == "production",
         max_age=14 * 24 * 60 * 60,
     )
@@ -71,7 +71,7 @@ async def logout(response: Response):
     response.delete_cookie(
         key="fintell_token",
         httponly=True,
-        samesite="lax",
+        samesite="none" if settings.app_env.lower() == "production" else "lax",
         secure=settings.app_env.lower() == "production"
     )
     return {"message": "Logged out successfully"}
