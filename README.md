@@ -82,4 +82,14 @@ npm run build
 
 Contributions are welcome! Please ensure that you follow the established architectural patterns (e.g., placing new API calls in `services/` and keeping reusable UI fragments in `components/ui/`).
 
+## Contributors
 
+Special thanks to the following contributors who helped build and maintain this project:
+- Chandu
+- Amrutha
+- Pardhu
+- Sonu
+
+## License
+
+This project is licensed under the MIT License.
