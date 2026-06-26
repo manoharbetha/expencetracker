@@ -3,16 +3,8 @@ import { Plus, Trash2, CheckCircle, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import api from '../services/api';
+import { notepadService, type Note } from '../services/notepadService';
 import { formatCurrency } from '../utils/formatters';
-
-interface Note {
-  id: string;
-  title: string;
-  estimatedPrice: number;
-  priority: string;
-  status: string;
-}
 
 export const Notepad = () => {
   const [notes, setNotes] = useState<Note[]>([]);
@@ -24,7 +16,7 @@ export const Notepad = () => {
 
   const fetchNotes = async () => {
     try {
-      const { data } = await api.get('/notepad/');
+      const data = await notepadService.list();
       setNotes(data);
     } catch (err) {
       toast.error('Failed to load wishlist items');
@@ -42,10 +34,11 @@ export const Notepad = () => {
     if (!title.trim()) return toast.error('Title is required');
     
     try {
-      const { data } = await api.post('/notepad/', {
+      const data = await notepadService.create({
         title,
         estimatedPrice: Number(price) || 0,
-        priority
+        priority,
+        status: 'Pending'
       });
       setNotes([data, ...notes]);
       setTitle('');
@@ -60,7 +53,7 @@ export const Notepad = () => {
   const handleToggleStatus = async (note: Note) => {
     const newStatus = note.status === 'Pending' ? 'Bought' : 'Pending';
     try {
-      const { data } = await api.put(`/notepad/${note.id}`, { status: newStatus });
+      const data = await notepadService.updateStatus(note.id, newStatus);
       setNotes(notes.map(n => n.id === note.id ? data : n));
     } catch (err) {
       toast.error('Failed to update status');
@@ -69,7 +62,7 @@ export const Notepad = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      await api.delete(`/notepad/${id}`);
+      await notepadService.remove(id);
       setNotes(notes.filter(n => n.id !== id));
       toast.success('Item deleted');
     } catch (err) {

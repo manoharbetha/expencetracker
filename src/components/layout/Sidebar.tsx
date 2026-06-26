@@ -13,7 +13,6 @@ const nav = [
   { label: 'Notepad', path: '/notepad', icon: StickyNote },
   { label: 'AI Assistant', path: '/ai-assistant', icon: Sparkles },
   { label: 'Statement Import', path: '/import', icon: FileDown },
-  { label: 'Settings', path: '/settings', icon: Settings },
 ];
 
 export const Sidebar = () => {
@@ -44,22 +43,6 @@ export const Sidebar = () => {
             </NavLink>
           ))}
         </nav>
-
-        <div className="mt-auto space-y-2">
-          <button
-            onClick={logout}
-            className="flex w-full items-center gap-3 rounded px-3 py-2 text-sm font-semibold text-secondary transition hover:bg-rose/10 hover:text-rose"
-          >
-            <LogOut className="h-4 w-4" /> Sign Out
-          </button>
-          <div className="flex items-center gap-3 rounded border border-subtle bg-card p-3">
-            <Avatar name={user?.name ?? 'User'} size="sm" />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-bold">{user?.name ?? 'User'}</p>
-              <p className="truncate text-xs text-secondary">{user?.email ?? ''}</p>
-            </div>
-          </div>
-        </div>
       </aside>
 
       {/* Mobile nav */}

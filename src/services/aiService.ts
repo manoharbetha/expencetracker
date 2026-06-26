@@ -31,4 +31,10 @@ export const aiService = {
     const { data } = await api.post<{ result: string }>('/ai/debt-alert');
     return data.result;
   },
+  async dashboardInsights(refresh = false): Promise<any> {
+    const url = refresh ? '/ai/dashboard-insights/refresh' : '/ai/dashboard-insights';
+    const method = refresh ? 'post' : 'get';
+    const { data } = await api[method](url);
+    return data;
+  }
 };

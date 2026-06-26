@@ -3,7 +3,7 @@ import { UploadCloud, FileText, CheckCircle, Trash2, FileOutput } from 'lucide-r
 import toast from 'react-hot-toast';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import api from '../services/api';
+import { statementService } from '../services/statementService';
 import { formatCurrency, formatDate } from '../utils/formatters';
 
 interface ExtractedTxn {
@@ -20,6 +20,7 @@ export const StatementImport = () => {
   const [transactions, setTransactions] = useState<ExtractedTxn[]>([]);
   const [step, setStep] = useState<'upload' | 'preview' | 'success'>('upload');
   const [summary, setSummary] = useState('');
+  const [progress, setProgress] = useState(0);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -33,13 +34,15 @@ export const StatementImport = () => {
   const handleUpload = async () => {
     if (!file) return;
     setUploading(true);
+    setProgress(0);
     const formData = new FormData();
     formData.append('file', file);
     
     try {
-      const { data } = await api.post('/statements/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      const data = await statementService.upload(formData, (progressEvent: any) => {
+        if (progressEvent.total) setProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total));
       });
+      
       if (data.items.length === 0) {
         console.error("Statement Import Failed:", data.debug);
         toast.error(data.message + " (Check console for detailed debug report)");
@@ -59,7 +62,7 @@ export const StatementImport = () => {
   const handleConfirm = async () => {
     setUploading(true);
     try {
-      const { data } = await api.post('/statements/confirm', transactions);
+      const data = await statementService.confirm(transactions);
       setSummary(data.summary);
       setStep('success');
       toast.success(data.message);

@@ -1,4 +1,4 @@
-import { Bell, Menu, Search, X } from 'lucide-react';
+import { Bell, Menu, Search, Settings, LogOut } from 'lucide-react';
 import { NotificationDrawer } from '../notifications/NotificationDrawer';
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -8,6 +8,7 @@ import { Modal } from '../ui/Modal';
 import { Avatar } from '../ui/Avatar';
 import api from '../../services/api';
 import { formatCurrency } from '../../utils/formatters';
+import { useAuth } from '../../context/AuthContext';
 
 export const Navbar = () => {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -17,8 +18,11 @@ export const Navbar = () => {
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const label = location.pathname === '/' ? 'Home' : location.pathname.split('/').filter(Boolean).join(' / ');
 
   useEffect(() => {
@@ -81,7 +85,31 @@ export const Navbar = () => {
         <NotificationDrawer isOpen={notifOpen} onClose={() => { setNotifOpen(false); fetchNotifications(); }} unreadCount={unreadCount} setUnreadCount={setUnreadCount} />
       </div>
 
-      <Avatar name="User" size="sm" />
+      <div className="relative">
+        <button onClick={() => setDropdownOpen(!dropdownOpen)} className="focus:outline-none">
+          <Avatar name={user?.name || 'User'} size="sm" />
+        </button>
+        {dropdownOpen && (
+          <div className="absolute right-0 mt-2 w-48 rounded border border-subtle bg-card p-2 shadow-lg z-50">
+            <div className="px-3 py-2 border-b border-subtle mb-1">
+              <p className="text-sm font-bold text-primary">{user?.name || 'User'}</p>
+              <p className="text-xs text-secondary truncate">{user?.email || ''}</p>
+            </div>
+            <button 
+              onClick={() => { setDropdownOpen(false); navigate('/settings'); }}
+              className="w-full flex items-center gap-2 rounded px-3 py-2 text-sm font-semibold text-secondary hover:bg-hover hover:text-primary transition"
+            >
+              <Settings className="h-4 w-4" /> Settings
+            </button>
+            <button 
+              onClick={() => { setDropdownOpen(false); logout(); }}
+              className="w-full flex items-center gap-2 rounded px-3 py-2 text-sm font-semibold text-rose hover:bg-rose/10 transition mt-1"
+            >
+              <LogOut className="h-4 w-4" /> Sign Out
+            </button>
+          </div>
+        )}
+      </div>
       
       <Modal open={searchOpen} title="Search Transactions" onClose={() => setSearchOpen(false)}>
         <Input prefix={<Search className="h-4 w-4" />} placeholder="Search descriptions..." autoFocus value={query} onChange={(e) => handleSearch(e.target.value)} />
