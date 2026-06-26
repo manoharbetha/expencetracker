@@ -1,97 +1,77 @@
 # AI Finance Manager
 
-A modern, full-stack personal finance application with AI-driven insights.
+A personal finance dashboard that tracks expenses, manages goals, and provides data-driven financial insights.
 
 ## About the Project
 
-The AI Finance Manager is a comprehensive platform designed to help users gain complete control over their personal finances. Built for young professionals and students, it consolidates expense tracking, goal management, and credit card utilization into a single dashboard. 
-
-The primary objective of this project is to simplify financial tracking while leveraging artificial intelligence to provide personalized, actionable recommendations—empowering users to save more and spend smarter without manual calculations.
-
-## Internship Information
+AI Finance Manager is a web application designed to help users track their income, expenses, and financial goals in one centralized dashboard. It solves the problem of manual expense tracking by providing automated categorizations, credit card utilization monitoring, and AI-driven spending insights. This application is intended for students, young professionals, and anyone looking for a clear overview of their personal finances.
 
 Developed during the Full Stack Development Internship at Symbiosis Technologies.
 
 ## Features
 
-- 📊 **Dashboard Analytics**: A consolidated view of monthly income, total expenses, net savings, and active goals.
-- 🤖 **AI Financial Insights**: Automated, dynamic recommendations and financial health scoring based on spending patterns.
-- 💳 **Credit Card Tracking**: Monitor credit utilization, receive billing cycle reminders, and maintain a healthy credit score securely.
-- 🧾 **Statement Import**: Upload bank statements directly to auto-categorize and track transactions quickly.
-- 🎯 **Goal Tracking**: Set targets for savings or debt repayment and track them with visual progress indicators.
-- 📝 **Financial Notepad**: Integrated quick notes to log wishlist items, pending purchases, or rough calculations.
-- 🔒 **Secure Authentication**: Robust user authentication flow protecting personal financial data.
+- **Dashboard Analytics**: View monthly income, total expenses, net savings, and active goals.
+- **AI Financial Insights**: Receive automated recommendations and a financial health score based on spending patterns.
+- **Credit Card Tracking**: Track credit utilization and view billing cycle due dates.
+- **Statement Import**: Upload bank statements to categorize and track transactions automatically.
+- **Goal Tracking**: Create financial goals and monitor progress over time.
+- **Financial Notepad**: Log quick notes, wishlist items, or pending purchases.
+- **Authentication**: Secure user login and registration.
 
 ## Screenshots
 
-*(Placeholders for future project screenshots)*
-
-- `[Dashboard]`
-- `[Expenses]`
-- `[Goals]`
-- `[Credit Card]`
-- `[AI Insights]`
-- `[Statement Import]`
+* [Dashboard Placeholder]
+* [Expenses Placeholder]
+* [Goals Placeholder]
+* [Credit Card Placeholder]
+* [AI Insights Placeholder]
+* [Statement Import Placeholder]
 
 ## Tech Stack
 
 **Frontend**
-- React 18
+- React
 - TypeScript
 - Vite
 - Tailwind CSS
 
 **Backend**
-- FastAPI (Python)
-- REST APIs
+- FastAPI
+- Python
 
 **Database**
-- MongoDB (via MongoDB Atlas)
-
-**AI & Analytics**
-- Integrated AI Models for Financial Insights
+- MongoDB
 
 ## Project Architecture
 
-The application follows a decoupled client-server architecture:
-- **React Frontend**: A modular, responsive user interface built with component-driven architecture for rapid rendering and smooth user experiences.
-- **FastAPI Backend**: A highly performant RESTful API layer managing business logic, AI interactions, and data processing.
-- **MongoDB Database**: A flexible NoSQL database storing user profiles, transaction history, and financial goals.
+The application is built using a standard client-server architecture:
+- **React Frontend**: A single-page application handling the user interface and state management.
+- **FastAPI Backend**: A RESTful API handling business logic, authentication, and AI service integration.
+- **MongoDB Database**: A NoSQL database storing user accounts, transactions, and goals.
 
 ## Folder Structure
 
 ```
 expencetracker/
-├── backend/            # FastAPI Server Application
+├── backend/            
 │   ├── app/
-│   │   ├── api/        # REST Route Definitions
-│   │   ├── core/       # Configurations and Security
-│   │   ├── models/     # Database Schemas
-│   │   └── services/   # Backend Business & AI Logic
+│   │   ├── api/        
+│   │   ├── core/       
+│   │   ├── models/     
+│   │   └── services/   
 │   └── requirements.txt
-└── src/                # React Vite Frontend Application
-    ├── components/     # Reusable UI widgets and domain components
-    ├── context/        # Global State (Auth, Theme)
-    ├── pages/          # Application Route Views
-    ├── services/       # Frontend API Integration layer
-    ├── types/          # TypeScript interface definitions
-    └── utils/          # Helpers and formatters
+└── src/                
+    ├── components/     
+    ├── context/        
+    ├── pages/          
+    ├── services/       
+    ├── types/          
+    └── utils/          
 ```
-
-## My Contributions
-
-I primarily focused on the core logic and integrations of the platform. My personal contributions include:
-- Backend API Development (FastAPI)
-- MongoDB Integration
-- AI Financial Insights Implementation
-- Statement Import Processing Logic
-- Credit Card Tracking System
-- User Authentication Flow
-- Dashboard Data Integration
 
 ## Team
 
-This project was developed during the Full Stack Development Internship at Symbiosis Technologies.
+Developed during the Full Stack Development Internship at Symbiosis Technologies.
 
 ### Team Members
 - Manohar Betha
@@ -102,7 +82,10 @@ This project was developed during the Full Stack Development Internship at Symbi
 
 ## Installation
 
-Follow these steps to run the project locally.
+### Prerequisites
+- Node.js (v16+)
+- Python (3.8+)
+- MongoDB Atlas account (or local MongoDB instance)
 
 ### 1. Clone the repository
 ```bash
@@ -115,6 +98,7 @@ Navigate to the backend directory, create a virtual environment, and install the
 ```bash
 cd backend
 python -m venv venv
+
 # On Windows:
 venv\Scripts\activate
 # On Mac/Linux:
@@ -128,7 +112,7 @@ uvicorn app.main:app --reload
 ```
 
 ### 3. Frontend Setup
-Open a new terminal window, navigate to the project root, and install dependencies:
+Open a new terminal window, navigate to the project root, and install the frontend dependencies:
 ```bash
 npm install
 ```
@@ -136,31 +120,26 @@ Start the React development server:
 ```bash
 npm run dev
 ```
-The application will be accessible at `http://localhost:5173`.
 
 ## Environment Variables
 
-To run this project, you will need to add the following environment variables.
+You will need to create environment configuration files to run the application locally.
 
-### Frontend (`.env` in root)
+**Frontend** (`.env` in the root directory):
 ```env
 VITE_API_URL=http://localhost:8000
 ```
 
-### Backend (`backend/.env`)
+**Backend** (`.env` in the `backend` directory):
 ```env
-MONGODB_URI=your_mongodb_connection_string
-JWT_SECRET=your_jwt_secret_key
-AI_API_KEY=your_ai_service_api_key
+MONGODB_URI=<your-mongodb-connection-string>
+JWT_SECRET=<your-jwt-secret-key>
+AI_API_KEY=<your-ai-service-api-key>
 ```
 
 ## Future Improvements
 
-- Multiple Credit Cards management.
-- OCR (Optical Character Recognition) for automated physical receipt importing.
-- Mobile Application utilizing React Native.
-- Advanced AI Recommendations forecasting multi-year financial roadmaps.
-
-## License
-
-This project is licensed under the MIT License.
+- Support for managing multiple credit cards simultaneously.
+- Implementation of OCR (Optical Character Recognition) to parse physical receipts.
+- Development of a companion mobile application.
+- Advanced forecasting for long-term financial planning.
