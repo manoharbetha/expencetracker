@@ -39,8 +39,11 @@ export const Scene3D = () => {
     <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
       <div className="absolute inset-0 bg-[#050816] opacity-90 z-10" />
       <Canvas camera={{ position: [0, 0, 10], fov: 45 }} dpr={[1, 2]}>
+        {/* @ts-ignore */}
         <ambientLight intensity={0.2} />
+        {/* @ts-ignore */}
         <directionalLight position={[10, 10, 5]} intensity={1.5} color="#4F46E5" />
+        {/* @ts-ignore */}
         <directionalLight position={[-10, -10, -5]} intensity={1} color="#06B6D4" />
         
         <GlowingOrb color="#4F46E5" position={[-4, 2, -5]} scale={3} speed={1} distort={0.4} />

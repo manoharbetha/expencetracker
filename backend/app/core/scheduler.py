@@ -91,6 +91,48 @@ async def run_daily_jobs():
         title = g.get("goalName", "Goal")
         await send_to_user(uid, "Goal Deadline", f"Your goal '{title}' is due tomorrow!", "goal")
 
+    # Credit Card bill reminders (due in <= 3 days)
+    cards_cursor = db.credit_cards.find({})
+    async for card in cards_cursor:
+        uid = card["userId"]
+        pipeline = [
+            {"$match": {"user_id": uid, "paymentMethod": "Credit Card"}},
+            {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+        ]
+        res_agg = await db.expenses.aggregate(pipeline).to_list(1)
+        current_usage = float(res_agg[0]["total"]) if res_agg else 0.0
+        
+        if current_usage > 0:
+            due_day = int(card.get("dueDate", 1))
+            try:
+                due_this_month = today.replace(day=due_day)
+            except ValueError:
+                due_this_month = today.replace(day=28)
+                
+            if today.day <= due_day:
+                next_due = due_this_month
+            else:
+                if today.month == 12:
+                    next_due = date(today.year + 1, 1, due_day)
+                else:
+                    try:
+                        next_due = date(today.year, today.month + 1, due_day)
+                    except ValueError:
+                        next_due = date(today.year, today.month + 1, 28)
+            
+            days_left = (next_due - today).days
+            if 0 <= days_left <= 3:
+                # Prevent duplicate notification in the last 24h
+                from datetime import datetime, timezone, timedelta
+                one_day_ago = datetime.now(timezone.utc) - timedelta(days=1)
+                existing = await db.notifications.find_one({
+                    "userId": uid,
+                    "title": "Credit Card Reminder",
+                    "createdAt": {"$gte": one_day_ago}
+                })
+                if not existing:
+                    await send_to_user(uid, "Credit Card Reminder", f"Your credit card payment for '{card.get('cardName')}' is due soon (in {days_left} days).", "credit_card")
+
 def start_scheduler():
     # Run every day at 9:00 AM
     scheduler.add_job(run_daily_jobs, 'cron', hour=9, minute=0)

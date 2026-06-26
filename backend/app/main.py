@@ -10,7 +10,7 @@ from app.db.mongodb import connect_to_mongo, close_mongo_connection
 from app.core.scheduler import start_scheduler, stop_scheduler
 from app.services.fcm_service import initialize_firebase
 
-from app.api.endpoints import auth, expenses, goals, dashboard, ai, debts, notifications, statements, notepad
+from app.api.endpoints import auth, expenses, goals, dashboard, ai, debts, notifications, statements, notepad, credit_card
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -75,3 +75,4 @@ app.include_router(ai.router, prefix=f"{api}/ai", tags=["AI"])
 app.include_router(notifications.router, prefix=f"{api}/notifications", tags=["Notifications"])
 app.include_router(statements.router, prefix=f"{api}/statements", tags=["Statements"])
 app.include_router(notepad.router, prefix=f"{api}/notepad", tags=["Notepad"])
+app.include_router(credit_card.router, prefix=f"{api}/credit-card", tags=["Credit Card"])

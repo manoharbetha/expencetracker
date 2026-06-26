@@ -1,4 +1,4 @@
-import { BarChart2, CreditCard, LayoutDashboard, LogOut, Receipt, Settings, Sparkles, Target, Wallet, FileDown, StickyNote } from 'lucide-react';
+import { BarChart2, CreditCard, LayoutDashboard, LogOut, Receipt, Settings, Sparkles, Target, Wallet, FileDown, StickyNote, Coins } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import clsx from 'clsx';
 import { Avatar } from '../ui/Avatar';
@@ -8,7 +8,8 @@ const nav = [
   { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
   { label: 'Expenses', path: '/expenses', icon: Receipt },
   { label: 'Goals', path: '/goals', icon: Target },
-  { label: 'Debt', path: '/debt', icon: CreditCard },
+  { label: 'Debt', path: '/debt', icon: Coins },
+  { label: 'Credit Card', path: '/credit-card', icon: CreditCard },
   { label: 'Notepad', path: '/notepad', icon: StickyNote },
   { label: 'AI Assistant', path: '/ai-assistant', icon: Sparkles },
   { label: 'Statement Import', path: '/import', icon: FileDown },

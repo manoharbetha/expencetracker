@@ -11,6 +11,7 @@ const Dashboard = lazy(() => import('../pages/Dashboard').then(m => ({ default: 
 const Expenses = lazy(() => import('../pages/Expenses').then(m => ({ default: m.Expenses })));
 const Goals = lazy(() => import('../pages/Goals').then(m => ({ default: m.Goals })));
 const DebtManager = lazy(() => import('../pages/DebtManager').then(m => ({ default: m.DebtManager })));
+const CreditCardPage = lazy(() => import('../pages/CreditCardPage').then(m => ({ default: m.CreditCardPage })));
 const Notepad = lazy(() => import('../pages/Notepad').then(m => ({ default: m.Notepad })));
 const AIAssistant = lazy(() => import('../pages/AIAssistant').then(m => ({ default: m.AIAssistant })));
 const StatementImport = lazy(() => import('../pages/StatementImport').then(m => ({ default: m.StatementImport })));
@@ -54,6 +55,7 @@ export const routes: RouteObject[] = [
       { path: '/expenses', element: <Expenses /> },
       { path: '/goals', element: <Goals /> },
       { path: '/debt', element: <DebtManager /> },
+      { path: '/credit-card', element: <CreditCardPage /> },
       { path: '/notepad', element: <Notepad /> },
       { path: '/ai-assistant', element: <AIAssistant /> },
       { path: '/import', element: <StatementImport /> },

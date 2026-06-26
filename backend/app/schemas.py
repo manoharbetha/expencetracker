@@ -15,11 +15,14 @@ class ExpenseCategory(str, Enum):
     other = "Other"
 
 class PaymentMethod(str, Enum):
+    bank = "Bank"
     upi = "UPI"
-    credit_card = "Credit Card"
     cash = "Cash"
+    credit_card = "Credit Card"
     debit_card = "Debit Card"
     net_banking = "Net Banking"
+    other = "Other"
+
 
 # Auth Schemas
 class UserRegister(BaseModel):
@@ -142,6 +145,22 @@ class PurchaseImpactRequest(BaseModel):
 
 class AIResponse(BaseModel):
     result: str
+
+# Credit Card Schemas
+class CreditCardCreate(BaseModel):
+    cardName: str = Field(..., min_length=2, max_length=80)
+    creditLimit: float = Field(..., gt=0)
+    billingDate: int = Field(..., ge=1, le=31)
+    dueDate: int = Field(..., ge=1, le=31)
+
+class CreditCardResponse(BaseModel):
+    id: str
+    cardName: str
+    creditLimit: float
+    currentUsage: float
+    billingDate: int
+    dueDate: int
+    createdAt: str
 
 # Shared
 class MessageResponse(BaseModel):

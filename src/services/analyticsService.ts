@@ -14,6 +14,7 @@ export interface DashboardData {
   categoryBreakdown: CategoryBreakdown[];
   monthlySpendingTrends: MonthlyTrend[];
   recentExpenses: any[];
+  creditCard?: any;
 }
 
 export interface ReportData {

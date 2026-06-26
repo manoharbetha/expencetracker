@@ -5,6 +5,8 @@ import io
 import csv
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+from datetime import date
+import calendar
 
 from app.core.security import get_current_user
 from app.db.mongodb import get_db
@@ -64,6 +66,143 @@ async def dashboard(u: dict = Depends(get_current_user)) -> dict:
     recent_expenses_cursor = db.expenses.find({"user_id": uid}).sort("date", DESCENDING).limit(5)
     recent_expenses = [serialize_doc(d) async for d in recent_expenses_cursor]
 
+    # Credit Card metrics and insights
+    cc_data = None
+    card = await db.credit_cards.find_one({"userId": uid})
+    if card:
+        # 1. Dynamic currentUsage calculation
+        pipeline = [
+            {"$match": {"user_id": uid, "paymentMethod": "Credit Card"}},
+            {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+        ]
+        res_agg = await db.expenses.aggregate(pipeline).to_list(1)
+        current_usage = float(res_agg[0]["total"]) if res_agg else 0.0
+        limit = float(card.get("creditLimit", 0.0))
+        available = max(0.0, limit - current_usage)
+        utilization = (current_usage / limit * 100) if limit > 0 else 0.0
+
+        # 2. Credit Health Score out of 100
+        if utilization <= 30:
+            score = 100 - (utilization / 30) * 10
+            status = "Excellent"
+        elif utilization <= 50:
+            score = 90 - ((utilization - 30) / 20) * 15
+            status = "Good"
+        elif utilization <= 70:
+            score = 75 - ((utilization - 50) / 20) * 15
+            status = "Fair"
+        elif utilization <= 90:
+            score = 60 - ((utilization - 70) / 20) * 20
+            status = "High Usage"
+        else:
+            score = max(0, 40 - ((utilization - 90) / 10) * 40)
+            status = "Critical"
+        score = round(score)
+
+        # 3. Monthly CC spending calculation
+        today_dt = date.today()
+        start_of_month = today_dt.replace(day=1).isoformat()
+        if today_dt.month == 1:
+            start_of_prev = date(today_dt.year - 1, 12, 1).isoformat()
+            end_of_prev = date(today_dt.year - 1, 12, 31).isoformat()
+        else:
+            start_of_prev = date(today_dt.year, today_dt.month - 1, 1).isoformat()
+            last_day = calendar.monthrange(today_dt.year, today_dt.month - 1)[1]
+            end_of_prev = date(today_dt.year, today_dt.month - 1, last_day).isoformat()
+
+        curr_month_agg = await db.expenses.aggregate([
+            {"$match": {"user_id": uid, "paymentMethod": "Credit Card", "date": {"$gte": start_of_month}}},
+            {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+        ]).to_list(1)
+        monthly_cc_spending = float(curr_month_agg[0]["total"]) if curr_month_agg else 0.0
+
+        prev_month_agg = await db.expenses.aggregate([
+            {"$match": {"user_id": uid, "paymentMethod": "Credit Card", "date": {"$gte": start_of_prev, "$lte": end_of_prev}}},
+            {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+        ]).to_list(1)
+        prev_monthly_cc_spending = float(prev_month_agg[0]["total"]) if prev_month_agg else 0.0
+
+        spending_trend_pct = 0.0
+        if prev_monthly_cc_spending > 0:
+            spending_trend_pct = ((monthly_cc_spending - prev_monthly_cc_spending) / prev_monthly_cc_spending) * 100
+
+        # 4. Generate dynamic AI-style Insights
+        insights = []
+        if utilization <= 30 and current_usage > 0:
+            insights.append({"type": "success", "icon": "✅", "message": "Credit utilization is healthy."})
+        elif utilization >= 100:
+            insights.append({"type": "danger", "icon": "❌", "message": "You have reached your credit limit."})
+        elif utilization >= 90:
+            insights.append({"type": "danger", "icon": "⚠️", "message": "You are close to your credit limit."})
+        elif utilization >= 70:
+            insights.append({"type": "warning", "icon": "⚠️", "message": "You have crossed 70% utilization."})
+        
+        # Due Date check
+        due_day = int(card.get("dueDate", 1))
+        try:
+            due_this_month = today_dt.replace(day=due_day)
+        except ValueError:
+            due_this_month = today_dt.replace(day=28)
+            
+        if today_dt.day <= due_day:
+            next_due = due_this_month
+        else:
+            if today_dt.month == 12:
+                next_due = date(today_dt.year + 1, 1, due_day)
+            else:
+                try:
+                    next_due = date(today_dt.year, today_dt.month + 1, due_day)
+                except ValueError:
+                    next_due = date(today_dt.year, today_dt.month + 1, 28)
+                    
+        days_left = (next_due - today_dt).days
+        if 0 <= days_left <= 3 and current_usage > 0:
+            insights.append({"type": "warning", "icon": "⚠️", "message": f"Your bill is due in {days_left} days."})
+
+        # Category check
+        top_cat_agg = await db.expenses.aggregate([
+            {"$match": {"user_id": uid, "paymentMethod": "Credit Card", "date": {"$gte": start_of_month}}},
+            {"$group": {"_id": "$category", "total": {"$sum": "$amount"}}},
+            {"$sort": {"total": -1}},
+            {"$limit": 1}
+        ]).to_list(1)
+        if top_cat_agg:
+            insights.append({"type": "info", "icon": "💡", "message": f"{top_cat_agg[0]['_id']} is your highest credit card spending category this month."})
+
+        # Trend check
+        if monthly_cc_spending > prev_monthly_cc_spending and prev_monthly_cc_spending > 0:
+            insights.append({"type": "warning", "icon": "📈", "message": "Credit card spending increased compared to last month."})
+
+        # Available credit check
+        if available > 0:
+            insights.append({"type": "info", "icon": "💡", "message": f"You have ₹{available:,.2f} remaining credit available."})
+
+        # Tip
+        if utilization >= 50:
+            insights.append({"type": "warning", "icon": "💡", "message": "Reduce discretionary spending to maintain a healthy utilization ratio."})
+
+        # If no insights generated, add a default healthy one
+        if not insights:
+            insights.append({"type": "success", "icon": "✅", "message": "Credit utilization is healthy."})
+
+        cc_data = {
+            "id": str(card["_id"]),
+            "cardName": card.get("cardName", ""),
+            "creditLimit": limit,
+            "currentUsage": round(current_usage, 2),
+            "availableCredit": round(available, 2),
+            "utilizationPercentage": round(utilization, 2),
+            "billingDate": int(card.get("billingDate", 1)),
+            "dueDate": int(card.get("dueDate", 1)),
+            "monthlySpending": round(monthly_cc_spending, 2),
+            "prevMonthlySpending": round(prev_monthly_cc_spending, 2),
+            "spendingTrendPercentage": round(spending_trend_pct, 2),
+            "healthScore": score,
+            "healthStatus": status,
+            "insights": insights,
+            "daysUntilDue": days_left
+        }
+
     return {
         "monthlyIncome": monthly_income,
         "totalExpenses": round(total_expenses, 2),
@@ -75,6 +214,7 @@ async def dashboard(u: dict = Depends(get_current_user)) -> dict:
         "categoryBreakdown": cat_agg,
         "monthlySpendingTrends": monthly_agg,
         "recentExpenses": recent_expenses,
+        "creditCard": cc_data
     }
 
 @router.get("/reports/monthly")

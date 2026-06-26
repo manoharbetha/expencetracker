@@ -10,7 +10,7 @@ import { Modal } from '../components/ui/Modal';
 import { Skeleton } from '../components/ui/Skeleton';
 
 const CATEGORIES = ['Food', 'Travel', 'Shopping', 'Bills', 'Education', 'Entertainment'];
-const METHODS = ['UPI', 'Credit Card', 'Cash', 'Debit Card', 'Net Banking'];
+const METHODS = ['Bank', 'UPI', 'Cash', 'Credit Card'];
 const TONE: Record<string, any> = {
   Food: 'amber', Travel: 'blue', Shopping: 'violet', Bills: 'rose', Education: 'emerald', Entertainment: 'pink',
 };

@@ -1,5 +1,5 @@
 export type Category = 'Food' | 'Travel' | 'Shopping' | 'Bills' | 'Education' | 'Entertainment';
-export type PaymentMethod = 'UPI' | 'Credit Card' | 'Cash' | 'Debit Card' | 'Net Banking';
+export type PaymentMethod = 'Bank' | 'UPI' | 'Credit Card' | 'Cash' | 'Debit Card' | 'Net Banking' | 'Other';
 export type InsightType = 'positive' | 'warning' | 'suggestion';
 export type DebtType = 'Loan' | 'Credit Card' | 'Borrowed' | 'Lent';
 
@@ -54,3 +54,26 @@ export interface ChartDatum {
   Entertainment?: number;
   value?: number;
 }
+
+export interface CreditCard {
+  id?: string;
+  cardName: string;
+  creditLimit: number;
+  currentUsage: number;
+  availableCredit: number;
+  utilizationPercentage: number;
+  billingDate: number;
+  dueDate: number;
+  monthlySpending: number;
+  prevMonthlySpending: number;
+  spendingTrendPercentage: number;
+  healthScore: number;
+  healthStatus: string;
+  insights: Array<{
+    type: 'success' | 'warning' | 'danger' | 'info';
+    icon: string;
+    message: string;
+  }>;
+  daysUntilDue: number;
+}
+
