@@ -12,14 +12,6 @@ export const AuthLayout = ({ children }: { children: ReactNode }) => (
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-violet-500/20 blur-[120px] rounded-full" />
     </div>
 
-    {/* Back to Home Navigation */}
-    <Link 
-      to="/" 
-      className="absolute top-8 left-8 flex items-center gap-2 text-secondary hover:text-white transition-colors group z-10"
-    >
-      <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" />
-      <span className="text-sm font-semibold">Back to Home</span>
-    </Link>
 
     <motion.div 
       initial={{ opacity: 0, scale: 0.95, y: 20 }}

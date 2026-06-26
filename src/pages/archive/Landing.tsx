@@ -6,10 +6,10 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { ArrowRight, Bot, Target, Shield, Wallet, Zap, Brain, Sparkles, Receipt, CreditCard } from 'lucide-react';
 
-import { Scene3D } from '../components/landing/Scene3D';
-import { Hero3D } from '../components/landing/Hero3D';
-import { MagneticButton } from '../components/landing/MagneticButton';
-import { Button } from '../components/ui/Button';
+import { Scene3D } from '../../components/landing/Scene3D';
+import { Hero3D } from '../../components/landing/Hero3D';
+import { MagneticButton } from '../../components/landing/MagneticButton';
+import { Button } from '../../components/ui/Button';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -85,7 +85,7 @@ export const Landing = () => {
         </nav>
 
         {/* Hero Content */}
-        <div className="relative z-10 pt-32 px-6 text-center max-w-5xl mx-auto pointer-events-none">
+        <div className="relative z-30 pt-32 px-6 text-center max-w-5xl mx-auto pointer-events-none">
           <motion.div 
             initial={{ opacity: 0, y: 30 }} 
             animate={{ opacity: 1, y: 0 }} 

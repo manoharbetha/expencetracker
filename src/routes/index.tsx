@@ -4,7 +4,6 @@ import { AppLayout } from '../layouts/AppLayout';
 import { useAuth } from '../context/AuthContext';
 import { Wallet } from 'lucide-react';
 
-const Landing = lazy(() => import('../pages/Landing').then(m => ({ default: m.Landing })));
 const Login = lazy(() => import('../pages/Login').then(m => ({ default: m.Login })));
 const Register = lazy(() => import('../pages/Register').then(m => ({ default: m.Register })));
 const Dashboard = lazy(() => import('../pages/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -43,8 +42,15 @@ const LazyRoute = ({ children }: { children: React.ReactNode }) => (
   </Suspense>
 );
 
+const RootRedirect = () => {
+  const { isAuthenticated, isLoading } = useAuth();
+  if (isLoading) return <SuspenseLoader />;
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+  return <Navigate to="/login" replace />;
+};
+
 export const routes: RouteObject[] = [
-  { path: '/', element: <LazyRoute><Landing /></LazyRoute> },
+  { path: '/', element: <RootRedirect /> },
   { path: '/login', element: <LazyRoute><Login /></LazyRoute> },
   { path: '/register', element: <LazyRoute><Register /></LazyRoute> },
   {

@@ -58,14 +58,9 @@ export const Register = () => {
 
   return (
     <AuthLayout>
-      <div className="mb-6 flex items-center gap-3">
-        <div className="grid h-10 w-10 place-items-center rounded bg-[image:var(--gradient-ai)]">
-          <Wallet className="h-5 w-5 text-white" />
-        </div>
-        <div>
-          <h1 className="font-display text-2xl font-bold">Create account</h1>
-          <p className="text-sm text-secondary">Start your AI financial journey</p>
-        </div>
+      <div className="mb-6 text-center">
+        <h1 className="font-display text-2xl font-bold text-white">Create account</h1>
+        <p className="text-sm text-secondary mt-1">Start your AI financial journey</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
