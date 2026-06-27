@@ -46,13 +46,13 @@ export const Sidebar = () => {
       </aside>
 
       {/* Mobile nav */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 border-t border-subtle bg-void/95 px-2 py-2 backdrop-blur-xl lg:hidden">
-        {nav.slice(0, 6).map((item) => (
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex overflow-x-auto gap-1 border-t border-subtle bg-void/95 px-2 py-2 backdrop-blur-xl lg:hidden scrollbar-none">
+        {nav.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
             className={({ isActive }) =>
-              clsx('grid place-items-center gap-1 rounded py-2 text-[10px] font-semibold text-secondary', isActive && 'bg-blue/10 text-blue')
+              clsx('flex-shrink-0 w-[72px] grid place-items-center gap-1 rounded py-2 text-[10px] font-semibold text-secondary', isActive && 'bg-blue/10 text-blue')
             }
           >
             <item.icon className="h-5 w-5" />
