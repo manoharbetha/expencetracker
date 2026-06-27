@@ -1,6 +1,7 @@
 import io
 import json
 import asyncio
+import re
 from typing import List, Dict, Any
 import logging
 import pdfplumber
@@ -12,6 +13,142 @@ from app.services.parsers.generic_parser import GenericParser
 from app.services.parsers.googlepay_parser import GooglePayParser
 
 logger = logging.getLogger("expencetracker")
+
+def extract_dates_from_text(text: str) -> List[dict]:
+    months_map = {
+        "JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAY": 5, "JUN": 6,
+        "JUL": 7, "AUG": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12
+    }
+    
+    dates = []
+    text_upper = text.upper()
+    
+    # 1. DD MMM YY/YYYY
+    alpha_pattern1 = re.compile(r"\b(\d{1,2})\s*([A-Z]{3})[^\w\d]?\s*(\d{2,4})\b")
+    for m in alpha_pattern1.finditer(text_upper):
+        try:
+            day = int(m.group(1))
+            month = months_map.get(m.group(2))
+            year = int(m.group(3))
+            if year < 100:
+                year += 2000
+            if month and 1 <= month <= 12 and 1 <= day <= 31:
+                dates.append({"day": day, "month": month, "year": year})
+        except Exception:
+            pass
+            
+    # 2. MMM DD YY/YYYY (e.g. May 12, 2026)
+    alpha_pattern2 = re.compile(r"\b([A-Z]{3})\s*(\d{1,2})[^\w\d]?\s*(\d{2,4})\b")
+    for m in alpha_pattern2.finditer(text_upper):
+        try:
+            month = months_map.get(m.group(1))
+            day = int(m.group(2))
+            year = int(m.group(3))
+            if year < 100:
+                year += 2000
+            if month and 1 <= month <= 12 and 1 <= day <= 31:
+                dates.append({"day": day, "month": month, "year": year})
+        except Exception:
+            pass
+            
+    # 3. DD/MM/YYYY or DD-MM-YYYY
+    numeric_pattern = re.compile(r"\b(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})\b")
+    for m in numeric_pattern.finditer(text_upper):
+        try:
+            day = int(m.group(1))
+            month = int(m.group(2))
+            year = int(m.group(3))
+            if year < 100:
+                year += 2000
+            if 1 <= month <= 12 and 1 <= day <= 31:
+                dates.append({"day": day, "month": month, "year": year})
+        except Exception:
+            pass
+            
+    return dates
+
+def get_statement_period(text: str) -> dict:
+    if not text:
+        return {}
+        
+    text_upper = text.upper()
+    lines = text_upper.split('\n')
+    
+    period_keywords = ["PERIOD", "STATEMENT FOR", "STATEMENT DATE", "STMT DATE"]
+    target_text = ""
+    for line in lines[:30]:
+        if any(kw in line for kw in period_keywords):
+            target_text = line
+            break
+            
+    dates = []
+    if target_text:
+        dates = extract_dates_from_text(target_text)
+        
+    if len(dates) < 2:
+        dates = extract_dates_from_text(text_upper[:1000])
+        
+    if len(dates) < 2:
+        dates = extract_dates_from_text(text_upper[:4000])
+        
+    if len(dates) >= 2:
+        try:
+            sorted_dates = sorted(dates, key=lambda x: (x["year"], x["month"], x["day"]))
+            return {
+                "start": sorted_dates[0],
+                "end": sorted_dates[-1]
+            }
+        except Exception:
+            pass
+            
+    if len(dates) == 1:
+        return {
+            "start": dates[0],
+            "end": dates[0]
+        }
+        
+    return {}
+
+def normalize_transaction_dates(transactions: List[Dict[str, Any]], text_preview: str) -> List[Dict[str, Any]]:
+    period = get_statement_period(text_preview)
+    if not period or "start" not in period or "end" not in period:
+        return transactions
+        
+    start_year = period["start"]["year"]
+    start_month = period["start"]["month"]
+    end_year = period["end"]["year"]
+    end_month = period["end"]["month"]
+    
+    from datetime import datetime
+    
+    normalized = []
+    for t in transactions:
+        date_str = t.get("date")
+        if not date_str:
+            normalized.append(t)
+            continue
+            
+        try:
+            dt = datetime.strptime(date_str, "%Y-%m-%d")
+            t_month = dt.month
+            t_day = dt.day
+            
+            if start_year == end_year:
+                t_year = start_year
+            else:
+                if t_month >= start_month:
+                    t_year = start_year
+                else:
+                    t_year = end_year
+                    
+            corrected_date = f"{t_year:04d}-{t_month:02d}-{t_day:02d}"
+            t["date"] = corrected_date
+        except Exception:
+            pass
+            
+        normalized.append(t)
+        
+    return normalized
 
 async def extract_transactions_from_pdf(file_bytes: bytes, groq_client: AsyncGroq = None) -> Dict[str, Any]:
     """
@@ -51,6 +188,9 @@ async def extract_transactions_from_pdf(file_bytes: bytes, groq_client: AsyncGro
     if not transactions and len(text_preview.strip()) > 50:
         fallback_used = True
         transactions = await extract_with_ai_fallback(text_preview, groq_client=groq_client)
+
+    # Normalize dates based on statement period
+    transactions = normalize_transaction_dates(transactions, text_preview)
 
     return {
         "items": transactions,
