@@ -147,6 +147,10 @@ async def send_to_user(user_id: str, title: str, message: str, notif_type: str):
     }
     await db.notifications.insert_one(new_notif)
     
+    # Only dispatch push notifications for High priority
+    if priority != "High":
+        return
+    
     # 2. Get FCM tokens for user
     tokens = await db.notification_tokens.find({"userId": user_id}).to_list(100)
     

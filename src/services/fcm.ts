@@ -11,8 +11,13 @@ export const requestNotificationPermission = async () => {
   try {
     const permission = await Notification.requestPermission();
     if (permission === 'granted' && messaging) {
+      const vapidKey = (import.meta as any).env.VITE_FIREBASE_VAPID_KEY;
+      if (!vapidKey) {
+        console.warn('VITE_FIREBASE_VAPID_KEY is missing. Web push subscriptions may fail.');
+      }
+      
       const currentToken = await getToken(messaging, { 
-        // VAPID key usually required for web push, but we will rely on default for now
+        vapidKey
       });
       if (currentToken) {
         // Send token to server
