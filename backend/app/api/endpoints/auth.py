@@ -40,7 +40,7 @@ async def register(request: Request, response: Response, user_data: UserRegister
         key="fintell_token",
         value=token,
         httponly=True,
-        samesite="lax",
+        samesite="none" if settings.app_env.lower() == "production" else "lax",
         secure=settings.app_env.lower() == "production",
         max_age=14 * 24 * 60 * 60,
     )
