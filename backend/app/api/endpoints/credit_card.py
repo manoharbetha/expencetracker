@@ -106,3 +106,11 @@ async def upsert_credit_card(
         "lastImported": card.get("lastImported", ""),
         "createdAt": card.get("createdAt").isoformat() if hasattr(card.get("createdAt"), "isoformat") else str(card.get("createdAt"))
     }
+
+@router.delete("")
+async def delete_credit_card(u: dict = Depends(get_current_user)):
+    db = get_db()
+    await db.credit_cards.delete_many({"user_id": u["id"]})
+    await db.credit_cards.delete_many({"userId": u["id"]})
+    invalidate_insights_cache(u["id"])
+    return {"message": "Credit card deleted successfully."}

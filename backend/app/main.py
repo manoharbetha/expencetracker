@@ -18,6 +18,7 @@ from app.core.scheduler import start_scheduler, stop_scheduler
 from app.services.fcm_service import initialize_firebase
 
 from app.api.endpoints import auth, expenses, goals, dashboard, ai, debts, notifications, statements, notepad, credit_card
+from app.api.endpoints.settings import router as settings_router
 
 # Initialize logging before settings are created or validated
 setup_logging()
@@ -132,3 +133,4 @@ app.include_router(notifications.router, prefix=f"{api}/notifications", tags=["N
 app.include_router(statements.router, prefix=f"{api}/statements", tags=["Statements"])
 app.include_router(notepad.router, prefix=f"{api}/notepad", tags=["Notepad"])
 app.include_router(credit_card.router, prefix=f"{api}/credit-card", tags=["Credit Card"])
+app.include_router(settings_router, prefix=f"{api}/settings", tags=["Settings"])

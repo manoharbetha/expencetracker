@@ -1,17 +1,34 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { CreditCard as CardIcon, Save, Plus, Landmark, Calendar, AlertCircle } from 'lucide-react';
+import { CreditCard as CardIcon, Save, Plus, Landmark, Calendar, AlertCircle, Trash2 } from 'lucide-react';
 import { creditCardService, type CreditCardCreatePayload } from '../services/creditCardService';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { Modal } from '../components/ui/Modal';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import type { CreditCard } from '../types';
 
 export const CreditCardPage = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [cards, setCards] = useState<CreditCard[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  
+  const handleDeleteCard = async () => {
+    setDeleting(true);
+    try {
+      await creditCardService.delete();
+      toast.success('Credit Card deleted successfully');
+      setDeleteConfirmOpen(false);
+      fetchCards();
+    } catch {
+      toast.error('Failed to delete credit card');
+    } finally {
+      setDeleting(false);
+    }
+  };
   
   const [form, setForm] = useState<CreditCardCreatePayload>({
     cardName: '',
@@ -168,8 +185,20 @@ export const CreditCardPage = () => {
                         {card.bankName || 'Unknown Bank'}
                       </p>
                     </div>
-                    <div className="h-8 w-12 rounded bg-gradient-to-r from-amber-400/80 to-yellow-600/80 p-1 opacity-90 shadow-inner">
-                      <div className="h-full w-full rounded-sm border border-amber-600/30 grid grid-cols-3 grid-rows-3" />
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteConfirmOpen(true);
+                        }}
+                        className="rounded p-1.5 text-slate-400 hover:bg-white/10 hover:text-rose-400 transition"
+                        title="Delete Card"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                      <div className="h-8 w-12 rounded bg-gradient-to-r from-amber-400/80 to-yellow-600/80 p-1 opacity-90 shadow-inner">
+                        <div className="h-full w-full rounded-sm border border-amber-600/30 grid grid-cols-3 grid-rows-3" />
+                      </div>
                     </div>
                   </div>
 
@@ -226,6 +255,28 @@ export const CreditCardPage = () => {
           })}
         </div>
       )}
+
+      <Modal open={deleteConfirmOpen} title="Delete Credit Card?" onClose={() => setDeleteConfirmOpen(false)}>
+        <div className="space-y-4 text-primary">
+          <p className="text-sm text-secondary">
+            This will remove your credit card configuration.
+          </p>
+          <p className="text-sm text-secondary">
+            Your expense history will <strong className="text-primary">NOT</strong> be deleted.
+          </p>
+          <p className="text-sm text-slate-300">
+            Credit card analytics and usage will be reset.
+          </p>
+          <div className="flex justify-end gap-3 mt-6">
+            <Button variant="secondary" onClick={() => setDeleteConfirmOpen(false)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={handleDeleteCard} disabled={deleting}>
+              {deleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

@@ -8,7 +8,7 @@ class GooglePayParser(BaseParser):
         # GPay often has "Paid to XYZ" and the date right after or before.
         # This is a simplified regex approach customized for Google Pay text
         date_pattern = re.compile(r"(\w{3} \d{1,2}, \d{4})") # e.g. May 12, 2023
-        amount_pattern = re.compile(r"₹\s?(\d{1,3}(?:,\d{3})*\.\d{2}|\d{1,3}(?:,\d{3})*)")
+        amount_pattern = re.compile(r"(?:[₹nN]|\bINR\b)?\s*(\d{1,3}(?:,\d{3})*\.\d{2}|\d{1,3}(?:,\d{3})*)")
         
         for page in self.pdf_file.pages:
             text = page.extract_text()
@@ -28,6 +28,10 @@ class GooglePayParser(BaseParser):
                         
                     if date_match and amt_match:
                         merchant = line.replace("Paid to", "").replace("Sent to", "").strip()
+                        # Remove the matched amount string (and prefix) from the merchant name
+                        merchant = merchant.replace(amt_match.group(0), "").strip()
+                        # Strip trailing isolated currency characters if any remain
+                        merchant = re.sub(r"\s+[nN]$", "", merchant)
                         merchant = self.clean_merchant(merchant)
                         amt = float(amt_match.group(1).replace(",", ""))
                         date_str = date_match.group(1)

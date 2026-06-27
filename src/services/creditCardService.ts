@@ -24,4 +24,9 @@ export const creditCardService = {
     const { data } = await api.post<CreditCard>('/credit-card', payload);
     return data;
   },
+
+  async delete(): Promise<{ message: string }> {
+    const { data } = await api.delete<{ message: string }>('/credit-card');
+    return data;
+  },
 };
