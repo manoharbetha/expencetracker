@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel
+import firebase_admin
+from firebase_admin import messaging
 
 from app.core.security import get_current_user
 from app.db.mongodb import get_db
@@ -113,3 +115,40 @@ async def delete_notification(nid: str, u: dict = Depends(get_current_user)):
     if res.deleted_count == 0:
         raise HTTPException(404, "Notification not found")
     return {"message": "Deleted successfully"}
+
+@router.post("/debug/test-push")
+async def debug_test_push(u: dict = Depends(get_current_user)):
+    db = get_db()
+    tokens = await db.notification_tokens.find({"userId": u["id"]}).to_list(100)
+    
+    if not tokens:
+        return {"success": False, "message": "No tokens found for user", "tokens_found": 0, "responses": [], "errors": []}
+        
+    responses = []
+    errors = []
+    
+    for doc in tokens:
+        token = doc.get("fcmToken")
+        if not token:
+            continue
+            
+        try:
+            msg = messaging.Message(
+                notification=messaging.Notification(
+                    title="Backend Debug Push",
+                    body=f"Test push delivery to token ending in {token[-6:]}"
+                ),
+                token=token
+            )
+            response = messaging.send(msg)
+            responses.append({"token": f"...{token[-6:]}", "response_id": response})
+        except Exception as e:
+            import traceback
+            errors.append({"token": f"...{token[-6:]}", "error": str(e), "traceback": traceback.format_exc()})
+            
+    return {
+        "success": len(responses) > 0,
+        "tokens_found": len(tokens),
+        "responses": responses,
+        "errors": errors
+    }

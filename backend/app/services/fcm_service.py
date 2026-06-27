@@ -155,11 +155,16 @@ async def send_to_user(user_id: str, title: str, message: str, notif_type: str):
     tokens = await db.notification_tokens.find({"userId": user_id}).to_list(100)
     
     if not tokens:
+        logger.info(f"FCM: No tokens found for user {user_id}. Push delivery skipped.")
         return
         
+    logger.info(f"FCM: Sending '{title}' to user {user_id}. Found {len(tokens)} tokens.")
+    
     for doc in tokens:
         token = doc.get("fcmToken")
         if token:
+            masked_token = f"{token[:10]}...{token[-10:]}" if len(token) > 20 else token
+            logger.info(f"FCM: Attempting to send to token {masked_token}")
             try:
                 msg = messaging.Message(
                     notification=messaging.Notification(
@@ -169,7 +174,21 @@ async def send_to_user(user_id: str, title: str, message: str, notif_type: str):
                     data={"type": notif_type, "priority": priority, "category": category},
                     token=token
                 )
-                messaging.send(msg)
+                response = messaging.send(msg)
+                logger.info(f"FCM: Successfully sent message. Response ID: {response}")
+            except firebase_admin.exceptions.FirebaseError as e:
+                import traceback
+                logger.error(f"FCM: FirebaseError sending to token {masked_token}: {e}\n{traceback.format_exc()}")
+                
+                err_str = str(e).upper()
+                should_delete = False
+                
+                if any(x in err_str for x in ['UNREGISTERED', 'INVALID_ARGUMENT', 'NOT_FOUND', 'SENDER_ID_MISMATCH']):
+                    should_delete = True
+                    
+                if should_delete:
+                    logger.warning(f"FCM: Removing invalid token from DB: {masked_token}")
+                    await db.notification_tokens.delete_one({"fcmToken": token})
             except Exception as e:
-                logger.error(f"Failed to send push to token {token}: {e}")
-                # Optional: If error is unregistered, delete token from db
+                import traceback
+                logger.error(f"FCM: Unexpected error sending to token {masked_token}: {e}\n{traceback.format_exc()}")
