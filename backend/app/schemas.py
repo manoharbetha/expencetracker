@@ -184,23 +184,14 @@ class AIResponse(BaseModel):
 # Credit Card Schemas
 class CreditCardCreate(BaseModel):
     cardName: str = Field(..., min_length=2, max_length=80)
+    bankName: str = Field(..., min_length=2, max_length=80)
     creditLimit: float = Field(..., gt=0)
-    billingDate: int = Field(..., ge=1, le=31)
-    dueDate: int = Field(..., ge=1, le=31)
-    bankName: Optional[str] = None
-    availableLimit: Optional[float] = None
-    outstanding: Optional[float] = None
-    minimumDue: Optional[float] = None
-    statementDate: Optional[str] = None
-    lastImported: Optional[str] = None
 
 class CreditCardResponse(BaseModel):
     id: str
     cardName: str
     creditLimit: float
     currentUsage: float
-    billingDate: int
-    dueDate: int
     createdAt: str
     bankName: Optional[str] = None
     availableLimit: Optional[float] = None
@@ -208,6 +199,8 @@ class CreditCardResponse(BaseModel):
     minimumDue: Optional[float] = None
     statementDate: Optional[str] = None
     lastImported: Optional[str] = None
+    dueDate: Optional[str] = None
+    billingDate: Optional[str] = None
 
 # Shared
 class MessageResponse(BaseModel):

@@ -27,6 +27,9 @@ async def connect_to_mongo() -> None:
     await db.debts.create_index([("user_id", ASCENDING), ("dueDate", ASCENDING)])
     await db.notifications.create_index([("user_id", ASCENDING), ("createdAt", DESCENDING)])
     await db.chat_history.create_index([("user_id", ASCENDING), ("createdAt", ASCENDING)])
+    await db.credit_cards.create_index([("user_id", ASCENDING)])
+    await db.credit_cards.create_index([("userId", ASCENDING)])
+    await db.statement_history.create_index([("credit_card_id", ASCENDING), ("statement_period", ASCENDING)])
     logger.info("MongoDB connected and indexes created.")
 
 async def close_mongo_connection() -> None:

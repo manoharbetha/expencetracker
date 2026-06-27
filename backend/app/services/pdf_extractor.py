@@ -211,7 +211,7 @@ async def extract_cc_details_with_ai(text_chunk: str, groq_client: AsyncGroq = N
     prompt = """
     Extract credit card details from this statement text.
     Return ONLY a JSON object with these keys (use null if not found):
-    "credit_limit" (number), "outstanding" (number), "available_limit" (number), "minimum_due" (number), "due_date" (number 1-31), "statement_date" (string YYYY-MM-DD), "card_name" (string), "bank_name" (string).
+    "credit_limit" (number), "outstanding" (number), "available_limit" (number), "minimum_due" (number), "due_date" (string YYYY-MM-DD), "statement_date" (string YYYY-MM-DD), "statement_period" (string e.g., '12 May 2026 - 11 Jun 2026'), "card_name" (string), "bank_name" (string).
     Statement Text:
     """ + text_chunk[:6000]
     try:

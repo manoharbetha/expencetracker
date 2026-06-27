@@ -59,28 +59,15 @@ export interface ChartDatum {
 export interface CreditCard {
   id?: string;
   cardName: string;
+  bankName: string;
   creditLimit: number;
   currentUsage: number;
-  availableCredit: number;
-  utilizationPercentage: number;
-  billingDate: number;
-  dueDate: number;
-  monthlySpending: number;
-  prevMonthlySpending: number;
-  spendingTrendPercentage: number;
-  healthScore: number;
-  healthStatus: string;
-  insights: Array<{
-    type: 'success' | 'warning' | 'danger' | 'info';
-    icon: string;
-    message: string;
-  }>;
-  daysUntilDue: number;
-  bankName?: string;
-  outstanding?: number;
-  availableLimit?: number;
-  minimumDue?: number;
+  availableLimit: number;
+  outstanding: number;
+  minimumDue: number;
   statementDate?: string;
+  dueDate?: string;
   lastImported?: string;
+  createdAt: string;
 }
 

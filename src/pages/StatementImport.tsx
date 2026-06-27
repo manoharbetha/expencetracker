@@ -1,10 +1,13 @@
 import { useState } from 'react';
-import { UploadCloud, FileText, CheckCircle, Trash2, FileOutput } from 'lucide-react';
+import { UploadCloud, FileText, CheckCircle, Trash2, FileOutput, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { Modal } from '../components/ui/Modal';
 import { statementService } from '../services/statementService';
-import { formatCurrency, formatDate } from '../utils/formatters';
+import { creditCardService } from '../services/creditCardService';
+import { formatCurrency } from '../utils/formatters';
+import type { CreditCard } from '../types';
 
 interface ExtractedTxn {
   date: string;
@@ -26,6 +29,12 @@ export const StatementImport = () => {
   const [statementType, setStatementType] = useState('bank');
   const [ccDetails, setCcDetails] = useState<any>(null);
   const [importSummary, setImportSummary] = useState<any>(null);
+  
+  const [cards, setCards] = useState<CreditCard[]>([]);
+  const [selectedCardId, setSelectedCardId] = useState<string>('');
+  const [showCreateCard, setShowCreateCard] = useState(false);
+  const [newCardForm, setNewCardForm] = useState({ bankName: '', cardName: '', creditLimit: '' });
+  const [conflictOpen, setConflictOpen] = useState(false);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
@@ -49,7 +58,6 @@ export const StatementImport = () => {
       });
       
       if (data.items.length === 0) {
-        console.error("Statement Import Failed:", data.debug);
         toast.error(data.message + " (Check console for detailed debug report)");
         setFile(null);
       } else {
@@ -57,6 +65,22 @@ export const StatementImport = () => {
         setStatementType(data.statement_type || 'bank');
         setCcDetails(data.cc_details || {});
         setImportSummary(data.summary || null);
+        
+        if (data.statement_type === 'credit_card') {
+          const existingCards = await creditCardService.list();
+          setCards(existingCards);
+          if (existingCards.length === 1) {
+            setSelectedCardId(existingCards[0].id!);
+          } else if (existingCards.length === 0) {
+            setNewCardForm({
+              bankName: data.cc_details?.bank_name || '',
+              cardName: data.cc_details?.card_name || '',
+              creditLimit: data.cc_details?.credit_limit || ''
+            });
+            setShowCreateCard(true);
+          }
+        }
+        
         setStep('preview');
         toast.success(data.message);
       }
@@ -67,20 +91,61 @@ export const StatementImport = () => {
     }
   };
 
-  const handleConfirm = async () => {
+  const handleCreateCard = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCardForm.bankName || !newCardForm.cardName || Number(newCardForm.creditLimit) <= 0) {
+      toast.error("Please fill all fields correctly.");
+      return;
+    }
     setUploading(true);
     try {
-      const data = await statementService.confirm({
+      const newCard = await creditCardService.upsert({
+        ...newCardForm,
+        creditLimit: Number(newCardForm.creditLimit)
+      });
+      setCards([...cards, newCard]);
+      setSelectedCardId(newCard.id!);
+      setShowCreateCard(false);
+      toast.success('Credit card created!');
+    } catch (err: any) {
+      toast.error('Failed to create credit card');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleConfirm = async (conflictResolution?: 'replace' | 'append') => {
+    if (statementType === 'credit_card' && !selectedCardId && !showCreateCard) {
+      toast.error("Please select a credit card");
+      return;
+    }
+    
+    setUploading(true);
+    try {
+      const payload: any = {
         transactions,
         statement_type: statementType,
         cc_details: ccDetails,
         filename: file?.name
-      });
+      };
+      if (statementType === 'credit_card') {
+        payload.credit_card_id = selectedCardId;
+      }
+      if (conflictResolution) {
+        payload.conflict_resolution = conflictResolution;
+      }
+      
+      const data = await statementService.confirm(payload);
       setSummary(data.summary);
       setStep('success');
+      setConflictOpen(false);
       toast.success(data.message);
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Import failed');
+      if (err.response?.status === 409) {
+        setConflictOpen(true);
+      } else {
+        toast.error(err.response?.data?.detail || 'Import failed');
+      }
     } finally {
       setUploading(false);
     }
@@ -136,6 +201,40 @@ export const StatementImport = () => {
 
       {step === 'preview' && (
         <div className="space-y-6">
+          {/* Card Selection or Creation Logic */}
+          {statementType === 'credit_card' && (
+            <div className="bg-surface rounded-card p-6 border border-subtle mb-6 animate-in fade-in slide-in-from-top-4">
+              {showCreateCard ? (
+                <div>
+                  <h2 className="font-bold text-lg mb-2 text-rose">No Credit Card Configured</h2>
+                  <p className="text-sm text-secondary mb-4">Before importing this statement, please configure your credit card.</p>
+                  <form onSubmit={handleCreateCard} className="grid gap-4 md:grid-cols-3">
+                    <Input label="Bank Name" required value={newCardForm.bankName} onChange={e => setNewCardForm({...newCardForm, bankName: e.target.value})} />
+                    <Input label="Card Name" required value={newCardForm.cardName} onChange={e => setNewCardForm({...newCardForm, cardName: e.target.value})} />
+                    <Input label="Credit Limit (₹)" type="number" required value={newCardForm.creditLimit} onChange={e => setNewCardForm({...newCardForm, creditLimit: e.target.value})} />
+                    <div className="col-span-full mt-2">
+                      <Button type="submit" variant="primary" disabled={uploading}>Create Credit Card</Button>
+                    </div>
+                  </form>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2 max-w-md">
+                  <label className="text-sm font-bold">Select the card this statement belongs to</label>
+                  <select 
+                    className="h-11 rounded border border-default bg-card px-3 text-sm text-primary transition focus:border-blue focus:outline-none"
+                    value={selectedCardId}
+                    onChange={(e) => setSelectedCardId(e.target.value)}
+                  >
+                    <option value="" disabled>Select a card</option>
+                    {cards.map(c => (
+                      <option key={c.id} value={c.id}>{c.bankName} - {c.cardName}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Summary Section */}
           <div className="bg-surface rounded-card p-6 border border-subtle">
             <h2 className="font-bold text-lg mb-4">Statement Overview</h2>
@@ -146,26 +245,30 @@ export const StatementImport = () => {
               </div>
               {statementType === 'credit_card' && ccDetails && (
                 <>
-                  <div>
-                    <p className="text-xs text-tertiary">Card Name</p>
-                    <p className="font-semibold text-sm">{ccDetails.card_name || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-tertiary">Bank</p>
-                    <p className="font-semibold text-sm">{ccDetails.bank_name || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-tertiary">Due Date</p>
-                    <p className="font-semibold text-sm">Day {ccDetails.due_date || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-tertiary">Credit Limit</p>
-                    <p className="font-semibold text-sm">{formatCurrency(ccDetails.credit_limit || 0)}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-tertiary">Outstanding</p>
-                    <p className="font-semibold text-sm">{formatCurrency(ccDetails.outstanding || 0)}</p>
-                  </div>
+                  {ccDetails.statement_period && (
+                    <div className="col-span-2">
+                      <p className="text-xs text-tertiary">Statement Period</p>
+                      <p className="font-semibold text-sm">{ccDetails.statement_period}</p>
+                    </div>
+                  )}
+                  {ccDetails.due_date && (
+                    <div>
+                      <p className="text-xs text-tertiary">Payment Due Date</p>
+                      <p className="font-semibold text-sm">{ccDetails.due_date}</p>
+                    </div>
+                  )}
+                  {ccDetails.credit_limit && (
+                    <div>
+                      <p className="text-xs text-tertiary">Extracted Limit</p>
+                      <p className="font-semibold text-sm">{formatCurrency(ccDetails.credit_limit)}</p>
+                    </div>
+                  )}
+                  {ccDetails.outstanding && (
+                    <div>
+                      <p className="text-xs text-tertiary">Outstanding Amount</p>
+                      <p className="font-semibold text-sm">{formatCurrency(ccDetails.outstanding)}</p>
+                    </div>
+                  )}
                 </>
               )}
               {importSummary && (
@@ -193,7 +296,7 @@ export const StatementImport = () => {
             </div>
             <div className="flex gap-2">
               <Button variant="secondary" onClick={() => { setStep('upload'); setFile(null); }}>Cancel</Button>
-              <Button variant="primary" onClick={handleConfirm} disabled={uploading}>
+              <Button variant="primary" onClick={() => handleConfirm()} disabled={uploading || showCreateCard || (statementType === 'credit_card' && !selectedCardId)}>
                 {uploading ? 'Importing...' : 'Confirm & Import'}
               </Button>
             </div>
@@ -281,6 +384,25 @@ export const StatementImport = () => {
           </div>
         </div>
       )}
+
+      <Modal open={conflictOpen} title="Duplicate Statement Detected" onClose={() => setConflictOpen(false)}>
+        <div className="space-y-4 text-primary">
+          <p className="text-sm text-secondary">
+            This statement period has already been imported for this card.
+          </p>
+          <div className="flex flex-col gap-3 mt-6">
+            <Button variant="danger" onClick={() => handleConfirm('replace')}>
+              Replace Existing Import
+            </Button>
+            <Button variant="secondary" onClick={() => handleConfirm('append')}>
+              Import Anyway (Append)
+            </Button>
+            <Button variant="ghost" onClick={() => setConflictOpen(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

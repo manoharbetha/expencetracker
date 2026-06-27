@@ -31,19 +31,28 @@ async def list_credit_cards(u: dict = Depends(get_current_user)):
         res = await db.expenses.aggregate(pipeline).to_list(1)
         current_usage = float(res[0]["total"]) if res else 0.0
         
+        # Fetch the latest statement history for metadata
+        latest_stmt = await db.statement_history.find_one(
+            {"credit_card_id": str(card["_id"])},
+            sort=[("importedAt", -1)]
+        )
+        
+        outstanding = float(latest_stmt.get("outstanding_amount", 0.0)) if latest_stmt else 0.0
+        credit_limit = float(card.get("creditLimit", 0.0))
+        available_limit = credit_limit - current_usage
+        
         result.append({
             "id": str(card["_id"]),
             "cardName": card.get("cardName", ""),
             "bankName": card.get("bankName", ""),
-            "creditLimit": float(card.get("creditLimit", 0.0)),
+            "creditLimit": credit_limit,
             "currentUsage": round(current_usage, 2),
-            "billingDate": int(card.get("billingDate", 1)),
-            "dueDate": int(card.get("dueDate", 1)),
-            "outstanding": float(card.get("outstanding", 0.0)),
-            "availableLimit": float(card.get("availableLimit", 0.0)),
-            "minimumDue": float(card.get("minimumDue", 0.0)),
-            "statementDate": card.get("statementDate", ""),
-            "lastImported": card.get("lastImported", ""),
+            "outstanding": round(outstanding, 2),
+            "availableLimit": round(available_limit, 2),
+            "minimumDue": float(latest_stmt.get("minimum_due", 0.0)) if latest_stmt else 0.0,
+            "statementDate": latest_stmt.get("statement_date", "") if latest_stmt else "",
+            "dueDate": str(latest_stmt.get("due_date", "")) if latest_stmt else "",
+            "lastImported": latest_stmt.get("importedAt", "") if latest_stmt else "",
             "createdAt": card.get("createdAt").isoformat() if hasattr(card.get("createdAt"), "isoformat") else str(card.get("createdAt"))
         })
         
@@ -62,13 +71,6 @@ async def upsert_credit_card(
         "cardName": card_data.cardName,
         "bankName": card_data.bankName,
         "creditLimit": card_data.creditLimit,
-        "billingDate": card_data.billingDate,
-        "dueDate": card_data.dueDate,
-        "outstanding": card_data.outstanding or 0,
-        "availableLimit": card_data.availableLimit or card_data.creditLimit,
-        "minimumDue": card_data.minimumDue or 0,
-        "statementDate": card_data.statementDate,
-        "lastImported": card_data.lastImported,
         "updatedAt": now
     }
     
@@ -84,26 +86,11 @@ async def upsert_credit_card(
     if not card:
         raise HTTPException(status_code=500, detail="Failed to retrieve credit card after save.")
     
-    pipeline = [
-        {"$match": {"user_id": u["id"], "paymentMethod": "Credit Card", "creditCardId": str(card["_id"])}},
-        {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
-    ]
-    res_agg = await db.expenses.aggregate(pipeline).to_list(1)
-    current_usage = float(res_agg[0]["total"]) if res_agg else 0.0
-    
     return {
         "id": str(card["_id"]),
         "cardName": card.get("cardName", ""),
         "bankName": card.get("bankName", ""),
         "creditLimit": float(card.get("creditLimit", 0.0)),
-        "currentUsage": round(current_usage, 2),
-        "billingDate": int(card.get("billingDate", 1)),
-        "dueDate": int(card.get("dueDate", 1)),
-        "outstanding": float(card.get("outstanding", 0.0)),
-        "availableLimit": float(card.get("availableLimit", 0.0)),
-        "minimumDue": float(card.get("minimumDue", 0.0)),
-        "statementDate": card.get("statementDate", ""),
-        "lastImported": card.get("lastImported", ""),
         "createdAt": card.get("createdAt").isoformat() if hasattr(card.get("createdAt"), "isoformat") else str(card.get("createdAt"))
     }
 

@@ -3,15 +3,8 @@ import type { CreditCard } from '../types';
 
 export interface CreditCardCreatePayload {
   cardName: string;
+  bankName: string;
   creditLimit: number;
-  billingDate: number;
-  dueDate: number;
-  bankName?: string;
-  outstanding?: number;
-  availableLimit?: number;
-  minimumDue?: number;
-  statementDate?: string;
-  lastImported?: string;
 }
 
 export const creditCardService = {

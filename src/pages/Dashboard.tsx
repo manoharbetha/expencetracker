@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { TrendingUp, BarChart3 } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SpendingChart } from '../components/charts/SpendingChart';
 import { IncomeExpenseBar } from '../components/charts/IncomeExpenseBar';
 import { Skeleton } from '../components/ui/Skeleton';
@@ -14,55 +15,58 @@ import { RecentNotifications } from '../components/dashboard/RecentNotifications
 import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 
 import { analyticsService, type DashboardData } from '../services/analyticsService';
-import { expenseService, type Expense } from '../services/expenseService';
-import { goalService, type Goal } from '../services/goalService';
+import { expenseService } from '../services/expenseService';
+import { goalService } from '../services/goalService';
 import { notificationService } from '../services/notificationService';
 import { aiService } from '../services/aiService';
 import { useAuth } from '../context/AuthContext';
 
 export const Dashboard = () => {
   const { user } = useAuth();
-  const [dash, setDash] = useState<DashboardData | null>(null);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [aiData, setAiData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [aiLoading, setAiLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const [refreshingAi, setRefreshingAi] = useState(false);
 
-  const fetchAiInsights = async (refresh = false) => {
-    setAiLoading(true);
+  // Queries using React Query for automatic caching and background updates
+  const { data: dash, isLoading: dashLoading } = useQuery<DashboardData>({
+    queryKey: ['dashboard'],
+    queryFn: analyticsService.getDashboard,
+  });
+
+  const { data: expensesData, isLoading: expensesLoading } = useQuery({
+    queryKey: ['recentExpenses'],
+    queryFn: () => expenseService.list({ limit: 5 }),
+  });
+  const expenses = expensesData?.items ?? [];
+
+  const { data: goals = [], isLoading: goalsLoading } = useQuery({
+    queryKey: ['goals'],
+    queryFn: goalService.list,
+  });
+
+  const { data: notifications = [], isLoading: notificationsLoading } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: notificationService.getNotifications,
+  });
+
+  const { data: aiData, isLoading: aiLoading } = useQuery({
+    queryKey: ['aiInsights'],
+    queryFn: () => aiService.dashboardInsights(false),
+    staleTime: 1000 * 60 * 15, // AI coach insights change less frequently
+  });
+
+  const loading = dashLoading || expensesLoading || goalsLoading || notificationsLoading;
+
+  const handleAiRefresh = async () => {
+    setRefreshingAi(true);
     try {
-      const data = await aiService.dashboardInsights(refresh);
-      setAiData(data);
+      await aiService.dashboardInsights(true);
+      await queryClient.invalidateQueries({ queryKey: ['aiInsights'] });
     } catch (e) {
       console.error(e);
     } finally {
-      setAiLoading(false);
+      setRefreshingAi(false);
     }
   };
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const results = await Promise.allSettled([
-          analyticsService.getDashboard(),
-          expenseService.list({ limit: 5 }),
-          goalService.list(),
-          notificationService.getNotifications(),
-        ]);
-
-        if (results[0].status === 'fulfilled') setDash(results[0].value);
-        if (results[1].status === 'fulfilled') setExpenses(results[1].value.items ?? []);
-        if (results[2].status === 'fulfilled') setGoals(results[2].value);
-        if (results[3].status === 'fulfilled') setNotifications(results[3].value ?? []);
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
-    fetchAiInsights();
-  }, []);
 
   const chartData = dash?.monthlySpendingTrends.map((t) => ({
     name: t.month,
@@ -79,9 +83,9 @@ export const Dashboard = () => {
         </p>
       </div>
 
-      <FinancialOverview dash={dash} loading={loading} />
+      <FinancialOverview dash={dash ?? null} loading={loading} />
 
-      <CreditCardWidget dash={dash} loading={loading} />
+      <CreditCardWidget dash={dash ?? null} loading={loading} />
 
       <div className="grid gap-4 xl:grid-cols-2">
         <section className="glass rounded-card p-5">
@@ -94,7 +98,7 @@ export const Dashboard = () => {
         </section>
       </div>
 
-      <TransactionsAndCategories expenses={expenses} dash={dash} loading={loading} />
+      <TransactionsAndCategories expenses={expenses} dash={dash ?? null} loading={loading} />
 
       <GoalProgress goals={goals} loading={loading} />
 
@@ -110,8 +114,8 @@ export const Dashboard = () => {
             }>
               <AIFinancialCoach 
                 insights={aiData?.insights || []} 
-                onRefresh={() => fetchAiInsights(true)} 
-                loading={aiLoading} 
+                onRefresh={handleAiRefresh} 
+                loading={aiLoading || refreshingAi} 
               />
             </ErrorBoundary>
           )}

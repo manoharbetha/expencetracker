@@ -30,11 +30,10 @@ export const CreditCardPage = () => {
     }
   };
   
-  const [form, setForm] = useState<CreditCardCreatePayload>({
+  const [form, setForm] = useState<any>({
     cardName: '',
-    creditLimit: 50000,
-    billingDate: 15,
-    dueDate: 5,
+    bankName: '',
+    creditLimit: '',
   });
 
   const fetchCards = async () => {
@@ -60,17 +59,21 @@ export const CreditCardPage = () => {
       toast.error('Card Name is required');
       return;
     }
-    if (form.creditLimit <= 0) {
+    if (!form.bankName.trim()) {
+      toast.error('Bank Name is required');
+      return;
+    }
+    if (Number(form.creditLimit) <= 0) {
       toast.error('Credit Limit must be greater than 0');
       return;
     }
 
     setSaving(true);
     try {
-      await creditCardService.upsert(form);
+      await creditCardService.upsert({ ...form, creditLimit: Number(form.creditLimit) });
       toast.success('Credit Card saved successfully');
       setShowForm(false);
-      setForm({ cardName: '', creditLimit: 50000, billingDate: 15, dueDate: 5 });
+      setForm({ cardName: '', bankName: '', creditLimit: '' });
       fetchCards();
     } catch (err: any) {
       toast.error(err.response?.data?.detail || 'Failed to save configuration');
@@ -112,39 +115,22 @@ export const CreditCardPage = () => {
                 required
               />
               <Input
-                label="Credit Limit (₹)"
-                type="number"
-                placeholder="e.g. 100000"
-                value={form.creditLimit || ''}
-                onChange={(e) => setForm({ ...form, creditLimit: Number(e.target.value) })}
+                label="Bank Name"
+                placeholder="e.g. SBI, HDFC"
+                value={form.bankName}
+                onChange={(e) => setForm({ ...form, bankName: e.target.value })}
                 required
               />
             </div>
             <div className="space-y-4">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-secondary">Billing Date</label>
-                <select
-                  className="h-11 w-full rounded border border-default bg-card px-3 text-sm text-primary transition focus:border-blue focus:outline-none"
-                  value={form.billingDate}
-                  onChange={(e) => setForm({ ...form, billingDate: Number(e.target.value) })}
-                >
-                  {Array.from({ length: 31 }).map((_, i) => (
-                    <option key={i + 1} value={i + 1}>Day {i + 1}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-secondary">Due Date</label>
-                <select
-                  className="h-11 w-full rounded border border-default bg-card px-3 text-sm text-primary transition focus:border-blue focus:outline-none"
-                  value={form.dueDate}
-                  onChange={(e) => setForm({ ...form, dueDate: Number(e.target.value) })}
-                >
-                  {Array.from({ length: 31 }).map((_, i) => (
-                    <option key={i + 1} value={i + 1}>Day {i + 1}</option>
-                  ))}
-                </select>
-              </div>
+              <Input
+                label="Credit Limit (₹)"
+                type="number"
+                placeholder="e.g. 100000"
+                value={form.creditLimit || ''}
+                onChange={(e) => setForm({ ...form, creditLimit: e.target.value })}
+                required
+              />
             </div>
             <div className="col-span-full mt-4 flex justify-end">
               <Button type="submit" icon={<Save className="h-4 w-4" />} disabled={saving}>
@@ -168,8 +154,8 @@ export const CreditCardPage = () => {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
           {cards.map((card) => {
             const usagePercent = card.creditLimit > 0 ? (card.currentUsage / card.creditLimit) * 100 : 0;
-            const outstanding = card.outstanding ?? card.currentUsage;
-            const availableLimit = card.availableLimit ?? (card.creditLimit - card.currentUsage);
+            const outstanding = card.outstanding || 0;
+            const availableLimit = card.availableLimit || (card.creditLimit - card.currentUsage);
 
             return (
               <div key={card.id} className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-6 shadow-xl text-white group">
@@ -241,11 +227,11 @@ export const CreditCardPage = () => {
                   {/* Dates Footer */}
                   <div className="flex items-center justify-between text-xs text-slate-400 pt-2">
                     <div className="flex flex-col gap-1">
-                      <span className="flex items-center gap-1"><Calendar className="h-3 w-3"/> Statement: {card.statementDate ? formatDate(card.statementDate) : `Day ${card.billingDate}`}</span>
+                      <span className="flex items-center gap-1"><Calendar className="h-3 w-3"/> Statement: {card.statementDate ? formatDate(card.statementDate) : '-'}</span>
                       <span className="flex items-center gap-1"><AlertCircle className="h-3 w-3"/> Min Due: {formatCurrency(card.minimumDue || 0)}</span>
                     </div>
                     <div className="flex flex-col gap-1 text-right">
-                      <span className="font-semibold text-rose-300">Due: {card.dueDate ? `Day ${card.dueDate}` : '-'}</span>
+                      <span className="font-semibold text-rose-300">Due: {card.dueDate ? card.dueDate : '-'}</span>
                       <span className="text-[10px]">Imported: {card.lastImported ? formatDate(card.lastImported) : 'Never'}</span>
                     </div>
                   </div>

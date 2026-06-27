@@ -157,53 +157,63 @@ async def confirm_statement(
     statement_type = payload.get("statement_type", "bank")
     cc_details = payload.get("cc_details", {})
     filename = payload.get("filename", "unknown.pdf")
+    credit_card_id = payload.get("credit_card_id")
+    conflict_resolution = payload.get("conflict_resolution")
     
     db = get_db()
     inserted_count = 0
     now = datetime.now(timezone.utc)
     
-    # Update Credit Card if applicable
     cc_id = None
-    if statement_type == "credit_card" and cc_details:
-        card_name = cc_details.get("card_name", "Unknown Card")
-        # Upsert logic based on card name
-        existing_cc = await db.credit_cards.find_one({"user_id": u["id"], "cardName": card_name})
+    statement_period = cc_details.get("statement_period")
+    
+    if statement_type == "credit_card":
+        if not credit_card_id:
+            raise HTTPException(status_code=400, detail="Credit card ID is required for credit card statements.")
+            
+        from bson import ObjectId
+        try:
+            cc = await db.credit_cards.find_one({"_id": ObjectId(credit_card_id), "user_id": u["id"]})
+            if not cc:
+                raise HTTPException(status_code=404, detail="Credit card not found.")
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid credit card ID.")
+            
+        cc_id = credit_card_id
         
-        cc_update_data = {
-            "cardName": card_name,
-            "bankName": cc_details.get("bank_name"),
-            "creditLimit": float(cc_details.get("credit_limit") or existing_cc.get("creditLimit", 50000) if existing_cc else 50000),
-            "outstanding": float(cc_details.get("outstanding") or 0),
-            "availableLimit": float(cc_details.get("available_limit") or 0),
-            "minimumDue": float(cc_details.get("minimum_due") or 0),
-            "dueDate": int(cc_details.get("due_date") or existing_cc.get("dueDate", 5) if existing_cc else 5),
-            "statementDate": cc_details.get("statement_date"),
-            "lastImported": now.isoformat()
-        }
-        
-        if existing_cc:
-            await db.credit_cards.update_one({"_id": existing_cc["_id"]}, {"$set": cc_update_data})
-            cc_id = str(existing_cc["_id"])
-        else:
-            cc_update_data["user_id"] = u["id"]
-            cc_update_data["createdAt"] = now.isoformat()
-            cc_update_data["billingDate"] = 15 # default
-            res = await db.credit_cards.insert_one(cc_update_data)
-            cc_id = str(res.inserted_id)
+        if statement_period:
+            existing_stmt = await db.statement_history.find_one({
+                "credit_card_id": cc_id,
+                "statement_period": statement_period,
+                "user_id": u["id"]
+            })
+            if existing_stmt:
+                if conflict_resolution == "replace":
+                    await db.expenses.delete_many({
+                        "creditCardId": cc_id,
+                        "statement_period": statement_period,
+                        "user_id": u["id"]
+                    })
+                    await db.statement_history.delete_many({
+                        "credit_card_id": cc_id,
+                        "statement_period": statement_period,
+                        "user_id": u["id"]
+                    })
+                elif conflict_resolution != "append":
+                    raise HTTPException(status_code=409, detail="This statement has already been imported.")
 
-    # Prevent basic duplicates
     existing_hashes = await get_existing_hashes(u["id"], db, 1000)
         
     docs_to_insert = []
     for txn in transactions:
-        if txn.get("status") in ["Duplicate", "Skipped"]:
+        if txn.get("status") in ["Duplicate", "Skipped"] and conflict_resolution != "replace":
             continue
             
         h = f"{txn.get('date')}_{txn.get('merchant')}_{txn.get('amount')}"
-        if h in existing_hashes:
+        if h in existing_hashes and conflict_resolution != "replace":
             continue 
             
-        docs_to_insert.append({
+        doc = {
             "user_id": u["id"],
             "amount": float(txn.get("amount", 0)),
             "category": txn.get("category", "Other"),
@@ -215,7 +225,11 @@ async def confirm_statement(
             "source": "statement_import",
             "createdAt": now,
             "updatedAt": now
-        })
+        }
+        if statement_period and statement_type == "credit_card":
+            doc["statement_period"] = statement_period
+            
+        docs_to_insert.append(doc)
         existing_hashes.add(h)
         
     if docs_to_insert:
@@ -223,22 +237,34 @@ async def confirm_statement(
         inserted_count = len(docs_to_insert)
         
     # Store import history
-    await db.statement_history.insert_one({
+    hist = {
         "user_id": u["id"],
         "filename": filename,
         "statementType": statement_type,
         "transactionsImported": inserted_count,
         "status": "Success",
         "importedAt": now.isoformat()
-    })
+    }
+    if statement_type == "credit_card":
+        hist["credit_card_id"] = cc_id
+        if statement_period:
+            hist["statement_period"] = statement_period
+        if cc_details.get("due_date"):
+            hist["due_date"] = cc_details["due_date"]
+        if cc_details.get("statement_date"):
+            hist["statement_date"] = cc_details["statement_date"]
+        if cc_details.get("outstanding"):
+            hist["outstanding_amount"] = cc_details["outstanding"]
+        if cc_details.get("minimum_due"):
+            hist["minimum_due"] = cc_details["minimum_due"]
+            
+    await db.statement_history.insert_one(hist)
     
-    # Generate summary
     summary = await summarize_import_ai(docs_to_insert, groq_client=groq_client)
     
     if inserted_count > 0:
         await send_to_user(u["id"], "Statement Imported", f"{inserted_count} transactions imported via {statement_type}.", "statement")
     
-    # Invalidate cached AI insights since data has changed
     invalidate_insights_cache(u["id"])
 
     return {

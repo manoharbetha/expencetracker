@@ -22,6 +22,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Validate session on load
   useEffect(() => {
     const validateSession = async () => {
+      const token = localStorage.getItem('fintell_token');
+      if (!token) {
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
       try {
         const { data } = await api.get('/me');
         setUser(data);

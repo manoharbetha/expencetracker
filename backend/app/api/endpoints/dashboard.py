@@ -18,24 +18,24 @@ router = APIRouter()
 @router.get("")
 @router.get("/dashboard") # Map both /analytics and /dashboard if prefixed with /analytics
 async def dashboard(u: dict = Depends(get_current_user)) -> dict:
+    import asyncio
     db = get_db()
     uid = u["id"]
 
-    exp_agg = await db.expenses.aggregate([
+    # Parallelize the independent main dashboard queries
+    exp_task = db.expenses.aggregate([
         {"$match": {"user_id": uid}},
         {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
     ]).to_list(1)
-    total_expenses = float(exp_agg[0]["total"]) if exp_agg else 0.0
-    monthly_income = float(u.get("monthlyIncome", 0))
 
-    cat_agg = await db.expenses.aggregate([
+    cat_task = db.expenses.aggregate([
         {"$match": {"user_id": uid}},
         {"$group": {"_id": "$category", "total": {"$sum": "$amount"}}},
         {"$project": {"_id": 0, "category": "$_id", "total": {"$round": ["$total", 2]}}},
         {"$sort": {"total": -1}},
     ]).to_list(20)
 
-    monthly_agg = await db.expenses.aggregate([
+    monthly_task = db.expenses.aggregate([
         {"$match": {"user_id": uid}},
         {"$addFields": {"dateObj": {"$toDate": "$date"}}},
         {"$group": {
@@ -46,10 +46,10 @@ async def dashboard(u: dict = Depends(get_current_user)) -> dict:
         {"$sort": {"month": 1}},
     ]).to_list(24)
 
-    active_goals = await db.goals.count_documents({"user_id": uid})
-    active_debts = await db.debts.count_documents({"user_id": uid})
+    active_goals_task = db.goals.count_documents({"user_id": uid})
+    active_debts_task = db.debts.count_documents({"user_id": uid})
 
-    total_emi_agg = await db.debts.aggregate([
+    total_emi_task = db.debts.aggregate([
         {"$match": {"user_id": uid}},
         {"$project": {
             "emi_value": {
@@ -58,34 +58,96 @@ async def dashboard(u: dict = Depends(get_current_user)) -> dict:
         }},
         {"$group": {"_id": None, "total": {"$sum": "$emi_value"}}},
     ]).to_list(1)
+
+    goals_list_task = db.goals.find({"user_id": uid}).to_list(50)
+    recent_expenses_task = db.expenses.find({"user_id": uid}).sort("date", DESCENDING).limit(5).to_list(5)
+    cards_task = db.credit_cards.find({"user_id": uid}).to_list(100)
+
+    (
+        exp_agg,
+        cat_agg,
+        monthly_agg,
+        active_goals,
+        active_debts,
+        total_emi_agg,
+        goals_list,
+        recent_expenses_docs,
+        cards
+    ) = await asyncio.gather(
+        exp_task,
+        cat_task,
+        monthly_task,
+        active_goals_task,
+        active_debts_task,
+        total_emi_task,
+        goals_list_task,
+        recent_expenses_task,
+        cards_task
+    )
+
+    total_expenses = float(exp_agg[0]["total"]) if exp_agg else 0.0
+    monthly_income = float(u.get("monthlyIncome", 0))
     total_emi = float(total_emi_agg[0]["total"]) if total_emi_agg else 0.0
-
-    goals_list = await db.goals.find({"user_id": uid}).to_list(50)
     total_saved = sum(float(g.get("savedAmount", 0)) for g in goals_list)
+    recent_expenses = [serialize_doc(d) for d in recent_expenses_docs]
 
-    recent_expenses_cursor = db.expenses.find({"user_id": uid}).sort("date", DESCENDING).limit(5)
-    recent_expenses = [serialize_doc(d) async for d in recent_expenses_cursor]
-
-    # Credit Card metrics and insights
-    cc_data = None
-    cards = await db.credit_cards.find({"user_id": uid}).to_list(100)
-    # backward compatibility
+    # backward compatibility for card search
     if not cards:
         cards = await db.credit_cards.find({"userId": uid}).to_list(100)
         
+    cc_data = None
     if cards:
         total_limit = sum(float(c.get("creditLimit", 0)) for c in cards)
         total_outstanding = sum(float(c.get("outstanding", 0)) for c in cards)
         total_available = sum(float(c.get("availableLimit", c.get("creditLimit", 0))) for c in cards)
         total_min_due = sum(float(c.get("minimumDue", 0)) for c in cards)
         
-        pipeline = [
+        today_dt = date.today()
+        start_of_month = today_dt.replace(day=1).isoformat()
+        if today_dt.month == 1:
+            start_of_prev = date(today_dt.year - 1, 12, 1).isoformat()
+            end_of_prev = date(today_dt.year - 1, 12, 31).isoformat()
+        else:
+            start_of_prev = date(today_dt.year, today_dt.month - 1, 1).isoformat()
+            last_day = calendar.monthrange(today_dt.year, today_dt.month - 1)[1]
+            end_of_prev = date(today_dt.year, today_dt.month - 1, last_day).isoformat()
+
+        # Parallelize credit card aggregate queries
+        cc_usage_task = db.expenses.aggregate([
             {"$match": {"user_id": uid, "paymentMethod": "Credit Card"}},
             {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
-        ]
-        res_agg = await db.expenses.aggregate(pipeline).to_list(1)
+        ]).to_list(1)
+
+        curr_month_task = db.expenses.aggregate([
+            {"$match": {"user_id": uid, "paymentMethod": "Credit Card", "date": {"$gte": start_of_month}}},
+            {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+        ]).to_list(1)
+
+        prev_month_task = db.expenses.aggregate([
+            {"$match": {"user_id": uid, "paymentMethod": "Credit Card", "date": {"$gte": start_of_prev, "$lte": end_of_prev}}},
+            {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+        ]).to_list(1)
+
+        top_cat_task = db.expenses.aggregate([
+            {"$match": {"user_id": uid, "paymentMethod": "Credit Card", "date": {"$gte": start_of_month}}},
+            {"$group": {"_id": "$category", "total": {"$sum": "$amount"}}},
+            {"$sort": {"total": -1}},
+            {"$limit": 1}
+        ]).to_list(1)
+
+        (
+            res_agg,
+            curr_month_agg,
+            prev_month_agg,
+            top_cat_agg
+        ) = await asyncio.gather(
+            cc_usage_task,
+            curr_month_task,
+            prev_month_task,
+            top_cat_task
+        )
+
         current_usage = float(res_agg[0]["total"]) if res_agg else 0.0
-        
         utilization = (current_usage / total_limit * 100) if total_limit > 0 else 0.0
 
         if utilization <= 30:
@@ -105,34 +167,13 @@ async def dashboard(u: dict = Depends(get_current_user)) -> dict:
             status = "Critical"
         score = round(score)
 
-        # 3. Monthly CC spending calculation
-        today_dt = date.today()
-        start_of_month = today_dt.replace(day=1).isoformat()
-        if today_dt.month == 1:
-            start_of_prev = date(today_dt.year - 1, 12, 1).isoformat()
-            end_of_prev = date(today_dt.year - 1, 12, 31).isoformat()
-        else:
-            start_of_prev = date(today_dt.year, today_dt.month - 1, 1).isoformat()
-            last_day = calendar.monthrange(today_dt.year, today_dt.month - 1)[1]
-            end_of_prev = date(today_dt.year, today_dt.month - 1, last_day).isoformat()
-
-        curr_month_agg = await db.expenses.aggregate([
-            {"$match": {"user_id": uid, "paymentMethod": "Credit Card", "date": {"$gte": start_of_month}}},
-            {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
-        ]).to_list(1)
         monthly_cc_spending = float(curr_month_agg[0]["total"]) if curr_month_agg else 0.0
-
-        prev_month_agg = await db.expenses.aggregate([
-            {"$match": {"user_id": uid, "paymentMethod": "Credit Card", "date": {"$gte": start_of_prev, "$lte": end_of_prev}}},
-            {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
-        ]).to_list(1)
         prev_monthly_cc_spending = float(prev_month_agg[0]["total"]) if prev_month_agg else 0.0
 
         spending_trend_pct = 0.0
         if prev_monthly_cc_spending > 0:
             spending_trend_pct = ((monthly_cc_spending - prev_monthly_cc_spending) / prev_monthly_cc_spending) * 100
 
-        # 4. Generate dynamic AI-style Insights
         insights = []
         if utilization <= 30 and current_usage > 0:
             insights.append({"type": "success", "icon": "✅", "message": "Credit utilization is healthy."})
@@ -143,7 +184,6 @@ async def dashboard(u: dict = Depends(get_current_user)) -> dict:
         elif utilization >= 70:
             insights.append({"type": "warning", "icon": "⚠️", "message": "You have crossed 70% utilization."})
         
-        # Determine nearest due date among all cards
         closest_due_date = None
         min_days_left = 999
         for c in cards:
@@ -172,29 +212,18 @@ async def dashboard(u: dict = Depends(get_current_user)) -> dict:
         if 0 <= min_days_left <= 3 and total_outstanding > 0:
             insights.append({"type": "warning", "icon": "⚠️", "message": f"A bill is due in {min_days_left} days."})
 
-        # Category check
-        top_cat_agg = await db.expenses.aggregate([
-            {"$match": {"user_id": uid, "paymentMethod": "Credit Card", "date": {"$gte": start_of_month}}},
-            {"$group": {"_id": "$category", "total": {"$sum": "$amount"}}},
-            {"$sort": {"total": -1}},
-            {"$limit": 1}
-        ]).to_list(1)
         if top_cat_agg:
             insights.append({"type": "info", "icon": "💡", "message": f"{top_cat_agg[0]['_id']} is your highest credit card spending category this month."})
 
-        # Trend check
         if monthly_cc_spending > prev_monthly_cc_spending and prev_monthly_cc_spending > 0:
             insights.append({"type": "warning", "icon": "📈", "message": "Credit card spending increased compared to last month."})
 
-        # Available credit check
         if total_available > 0:
             insights.append({"type": "info", "icon": "💡", "message": f"You have ₹{total_available:,.2f} total credit available."})
 
-        # Tip
         if utilization >= 50:
             insights.append({"type": "warning", "icon": "💡", "message": "Reduce discretionary spending to maintain a healthy utilization ratio."})
 
-        # If no insights generated, add a default healthy one
         if not insights:
             insights.append({"type": "success", "icon": "✅", "message": "Credit utilization is healthy."})
 
