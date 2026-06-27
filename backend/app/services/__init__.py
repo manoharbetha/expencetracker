@@ -63,6 +63,14 @@ async def generate_ai_response(prompt: str, groq_client = None) -> str:
         logger.error(f"Groq error occurred in generate_ai_response: {exc}")
         return _FALLBACK
 
+def safe_float(val: Any, default: float = 0.0) -> float:
+    if val is None:
+        return default
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return default
+
 async def build_ai_context(db: AsyncIOMotorDatabase, uid: str, user: dict) -> str:
     expenses = await db.expenses.find({"user_id": uid}).sort("date", -1).limit(30).to_list(30)
     goals = await db.goals.find({"user_id": uid}).to_list(20)
@@ -76,7 +84,7 @@ async def build_ai_context(db: AsyncIOMotorDatabase, uid: str, user: dict) -> st
     for item in expenses:
         cleaned_expenses.append({
             "merchant": item.get("merchant", ""),
-            "amount": float(item.get("amount", 0)),
+            "amount": safe_float(item.get("amount")),
             "category": item.get("category", "Other"),
             "date": item.get("date", ""),
             "paymentSource": item.get("paymentMethod", item.get("paymentSource", "Unknown"))
@@ -94,23 +102,23 @@ async def build_ai_context(db: AsyncIOMotorDatabase, uid: str, user: dict) -> st
         item.pop("user_id", None)
         item.pop("userId", None)
 
-    income = user.get("monthlyIncome", 0)
+    income = safe_float(user.get("monthlyIncome"))
     currency = user.get("currency", "INR")
-    total_emi = sum(float(d.get("emi", 0)) for d in debts if d.get("type") != "lent")
-    total_expense_30d = sum(float(e.get("amount", 0)) for e in expenses)
-    total_saved_goals = sum(float(g.get("savedAmount", 0)) for g in goals)
-    total_target_goals = sum(float(g.get("targetAmount", 0)) for g in goals)
+    total_emi = sum(safe_float(d.get("emi")) for d in debts if d.get("type") != "lent")
+    total_expense_30d = sum(safe_float(e.get("amount")) for e in expenses)
+    total_saved_goals = sum(safe_float(g.get("savedAmount")) for g in goals)
+    total_target_goals = sum(safe_float(g.get("targetAmount")) for g in goals)
 
     goal_details = [
-        f"{g.get('goalName','Goal')}: saved {currency} {g.get('savedAmount',0):.0f} / {g.get('targetAmount',0):.0f}, deadline {g.get('deadline','?')}"
+        f"{g.get('goalName','Goal')}: saved {currency} {safe_float(g.get('savedAmount')):.0f} / {safe_float(g.get('targetAmount')):.0f}, deadline {g.get('deadline','?')}"
         for g in goals
     ]
     debt_details = [
-        f"{d.get('title','Debt')} ({d.get('type', 'borrowed')}): {currency} {d.get('amount',0):.0f} @ {d.get('interestRate',0)}% interest, EMI {currency} {d.get('emi',0):.0f}, due {d.get('dueDate','?')}"
+        f"{d.get('title','Debt')} ({d.get('type', 'borrowed')}): {currency} {safe_float(d.get('amount')):.0f} @ {safe_float(d.get('interestRate'))}% interest, EMI {currency} {safe_float(d.get('emi')):.0f}, due {d.get('dueDate','?')}"
         for d in debts
     ]
     cc_details = [
-        f"Card: {c.get('cardName', 'CC')} - Limit: {c.get('creditLimit', 0)}, Outstanding: {c.get('outstanding', 0)}, Due Date: Day {c.get('dueDate', 1)} of month."
+        f"Card: {c.get('cardName', 'CC')} - Limit: {safe_float(c.get('creditLimit'))}, Outstanding: {safe_float(c.get('outstanding'))}, Due Date: Day {c.get('dueDate', 1)} of month."
         for c in cards
     ]
 

@@ -86,9 +86,9 @@ async def dashboard(u: dict = Depends(get_current_user)) -> dict:
     )
 
     total_expenses = float(exp_agg[0]["total"]) if exp_agg else 0.0
-    monthly_income = float(u.get("monthlyIncome", 0))
+    monthly_income = float(u.get("monthlyIncome") or 0)
     total_emi = float(total_emi_agg[0]["total"]) if total_emi_agg else 0.0
-    total_saved = sum(float(g.get("savedAmount", 0)) for g in goals_list)
+    total_saved = sum(float(g.get("savedAmount") or 0) for g in goals_list)
     recent_expenses = [serialize_doc(d) for d in recent_expenses_docs]
 
     # backward compatibility for card search
@@ -97,10 +97,10 @@ async def dashboard(u: dict = Depends(get_current_user)) -> dict:
         
     cc_data = None
     if cards:
-        total_limit = sum(float(c.get("creditLimit", 0)) for c in cards)
-        total_outstanding = sum(float(c.get("outstanding", 0)) for c in cards)
-        total_available = sum(float(c.get("availableLimit", c.get("creditLimit", 0))) for c in cards)
-        total_min_due = sum(float(c.get("minimumDue", 0)) for c in cards)
+        total_limit = sum(float(c.get("creditLimit") or 0) for c in cards)
+        total_outstanding = sum(float(c.get("outstanding") or 0) for c in cards)
+        total_available = sum(float(c.get("availableLimit") or c.get("creditLimit") or 0) for c in cards)
+        total_min_due = sum(float(c.get("minimumDue") or 0) for c in cards)
         
         today_dt = date.today()
         start_of_month = today_dt.replace(day=1).isoformat()

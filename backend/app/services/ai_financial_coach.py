@@ -124,4 +124,16 @@ async def generate_dashboard_insights(db, user_id: str, user: dict, force_refres
         
     except Exception as e:
         logger.error(f"AI Coach error occurred: {e}")
-        return {"financialHealthScore": {}, "potentialSavings": {}, "insights": []}
+        try:
+            cached = await db.ai_insights.find_one({"userId": user_id})
+            if cached:
+                return {
+                    "financialHealthScore": cached.get("financialHealthScore", {}),
+                    "potentialSavings": cached.get("potentialSavings", {}),
+                    "insights": cached.get("insights", []),
+                    "error": "Unable to refresh AI insights. Showing your previous analysis."
+                }
+        except Exception as db_err:
+            logger.error(f"Failed to fetch cached AI insights fallback: {db_err}")
+            
+        return {"financialHealthScore": {}, "potentialSavings": {}, "insights": [], "error": "Unable to refresh AI insights."}

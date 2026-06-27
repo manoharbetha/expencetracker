@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { TrendingUp, BarChart3 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { SpendingChart } from '../components/charts/SpendingChart';
 import { IncomeExpenseBar } from '../components/charts/IncomeExpenseBar';
 import { Skeleton } from '../components/ui/Skeleton';
@@ -59,9 +60,15 @@ export const Dashboard = () => {
   const handleAiRefresh = async () => {
     setRefreshingAi(true);
     try {
-      await aiService.dashboardInsights(true);
-      await queryClient.invalidateQueries({ queryKey: ['aiInsights'] });
+      const data = await aiService.dashboardInsights(true);
+      if (data.error) {
+        toast.error(data.error);
+      } else {
+        toast.success("AI insights refreshed successfully!");
+      }
+      queryClient.setQueryData(['aiInsights'], data);
     } catch (e) {
+      toast.error("Unable to refresh AI insights.");
       console.error(e);
     } finally {
       setRefreshingAi(false);
