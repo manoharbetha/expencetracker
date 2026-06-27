@@ -14,14 +14,15 @@ export const CreditCardPage = () => {
   const [deleting, setDeleting] = useState(false);
   const [cards, setCards] = useState<CreditCard[]>([]);
   const [showForm, setShowForm] = useState(false);
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [cardToDelete, setCardToDelete] = useState<string | null>(null);
   
   const handleDeleteCard = async () => {
+    if (!cardToDelete) return;
     setDeleting(true);
     try {
-      await creditCardService.delete();
+      await creditCardService.delete(cardToDelete);
       toast.success('Credit Card deleted successfully');
-      setDeleteConfirmOpen(false);
+      setCardToDelete(null);
       fetchCards();
     } catch {
       toast.error('Failed to delete credit card');
@@ -175,7 +176,7 @@ export const CreditCardPage = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setDeleteConfirmOpen(true);
+                          setCardToDelete(card.id!);
                         }}
                         className="rounded p-1.5 text-slate-400 hover:bg-white/10 hover:text-rose-400 transition"
                         title="Delete Card"
@@ -242,7 +243,7 @@ export const CreditCardPage = () => {
         </div>
       )}
 
-      <Modal open={deleteConfirmOpen} title="Delete Credit Card?" onClose={() => setDeleteConfirmOpen(false)}>
+      <Modal open={!!cardToDelete} title="Delete Credit Card?" onClose={() => setCardToDelete(null)}>
         <div className="space-y-4 text-primary">
           <p className="text-sm text-secondary">
             This will remove your credit card configuration.
@@ -254,7 +255,7 @@ export const CreditCardPage = () => {
             Credit card analytics and usage will be reset.
           </p>
           <div className="flex justify-end gap-3 mt-6">
-            <Button variant="secondary" onClick={() => setDeleteConfirmOpen(false)} disabled={deleting}>
+            <Button variant="secondary" onClick={() => setCardToDelete(null)} disabled={deleting}>
               Cancel
             </Button>
             <Button variant="danger" onClick={handleDeleteCard} disabled={deleting}>

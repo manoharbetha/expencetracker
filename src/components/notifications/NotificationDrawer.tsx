@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { X, Trash2, CheckCircle, Bell } from 'lucide-react';
+import { X, Trash2, Bell, DollarSign, CreditCard, TrendingUp, Target, Brain, Settings, Check } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 
@@ -8,6 +8,8 @@ interface Notification {
   title: string;
   message: string;
   type: string;
+  category: string;
+  priority: string;
   isRead: boolean;
   createdAt: string;
 }
@@ -44,15 +46,36 @@ export const NotificationDrawer = ({ isOpen, onClose, unreadCount, setUnreadCoun
 
   const markAsRead = async (id: string) => {
     try {
-      await api.put(`/notifications/${id}/read`);
-      setNotifications(notifications.map(n => n.id === id ? { ...n, isRead: true } : n));
+      // Optimistically update UI
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
       setUnreadCount(Math.max(0, unreadCount - 1));
+      
+      // Update backend
+      await api.put(`/notifications/${id}/read`);
     } catch (error) {
+      // Rollback on error
+      fetchNotifications();
       toast.error('Failed to mark as read');
     }
   };
 
-  const deleteNotif = async (id: string) => {
+  const markAllRead = async () => {
+    try {
+      // Optimistically update UI
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+      
+      // Update backend
+      await api.put('/notifications/read-all');
+      toast.success('All notifications marked as read');
+    } catch (error) {
+      fetchNotifications();
+      toast.error('Failed to mark all as read');
+    }
+  };
+
+  const deleteNotif = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent trigger click-to-read when deleting
     try {
       await api.delete(`/notifications/${id}`);
       const deletedNotif = notifications.find(n => n.id === id);
@@ -62,6 +85,29 @@ export const NotificationDrawer = ({ isOpen, onClose, unreadCount, setUnreadCoun
       setNotifications(notifications.filter(n => n.id !== id));
     } catch (error) {
       toast.error('Failed to delete');
+    }
+  };
+
+  const getCategoryIcon = (category: string) => {
+    const c = (category || 'Finance').toLowerCase();
+    switch (c) {
+      case 'finance':
+        return <DollarSign className="h-4 w-4 text-emerald" />;
+      case 'credit card':
+      case 'creditcard':
+        return <CreditCard className="h-4 w-4 text-blue" />;
+      case 'budget':
+        return <TrendingUp className="h-4 w-4 text-amber" />;
+      case 'goals':
+        return <Target className="h-4 w-4 text-indigo" />;
+      case 'ai insights':
+      case 'aiinsights':
+      case 'ai':
+        return <Brain className="h-4 w-4 text-purple" />;
+      case 'system':
+        return <Settings className="h-4 w-4 text-secondary" />;
+      default:
+        return <Bell className="h-4 w-4 text-secondary" />;
     }
   };
 
@@ -81,34 +127,71 @@ export const NotificationDrawer = ({ isOpen, onClose, unreadCount, setUnreadCoun
             <Bell className="h-4 w-4" />
             Notifications
           </h2>
-          <button onClick={onClose} className="p-1.5 hover:bg-hover rounded-full transition-colors text-secondary hover:text-foreground">
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-3">
+            {unreadCount > 0 && (
+              <button 
+                onClick={markAllRead} 
+                className="text-xs text-blue hover:text-blue/80 hover:underline transition-colors font-medium flex items-center gap-1"
+              >
+                <Check className="h-3 w-3" /> Mark all read
+              </button>
+            )}
+            <button onClick={onClose} className="p-1.5 hover:bg-hover rounded-full transition-colors text-secondary hover:text-foreground">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
         
         <div className="flex-1 overflow-y-auto p-2 space-y-2">
-          {loading ? (
+          {loading && notifications.length === 0 ? (
             <div className="text-center text-secondary py-8 text-sm">Loading...</div>
           ) : notifications.length === 0 ? (
             <div className="text-center text-secondary py-8 text-sm">No notifications yet.</div>
           ) : (
             notifications.map(n => (
-              <div key={n.id} className={`p-3 rounded-lg border transition-colors ${n.isRead ? 'bg-surface/30 border-transparent' : 'bg-card border-blue/30 shadow-sm'}`}>
-                <div className="flex justify-between items-start mb-1">
-                  <h3 className={`font-semibold text-sm ${n.isRead ? 'text-secondary' : 'text-foreground'}`}>{n.title}</h3>
+              <div 
+                key={n.id} 
+                onClick={() => !n.isRead && markAsRead(n.id)}
+                className={`p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
+                  n.isRead 
+                    ? 'bg-surface/10 border-transparent hover:bg-surface/20 opacity-70' 
+                    : 'bg-surface border-blue/20 hover:border-blue/40 shadow-glow-primary/5'
+                }`}
+              >
+                <div className="flex justify-between items-start mb-1.5">
+                  <div className="flex items-center gap-2">
+                    {getCategoryIcon(n.category)}
+                    <h3 className={`font-bold text-sm ${n.isRead ? 'text-secondary' : 'text-foreground'}`}>
+                      {n.title}
+                    </h3>
+                    {!n.isRead && (
+                      <span className="h-1.5 w-1.5 rounded-full bg-rose animate-pulse" title="Unread" />
+                    )}
+                  </div>
                   <span className="text-[10px] text-tertiary whitespace-nowrap ml-2">
                     {new Date(n.createdAt).toLocaleDateString()}
                   </span>
                 </div>
-                <p className={`text-xs mb-2 leading-relaxed ${n.isRead ? 'text-tertiary' : 'text-secondary'}`}>{n.message}</p>
-                <div className="flex justify-end gap-3 mt-2">
-                  {!n.isRead && (
-                    <button onClick={() => markAsRead(n.id)} className="text-[10px] flex items-center gap-1 text-blue hover:text-blue-400 transition-colors font-medium">
-                      <CheckCircle className="h-3 w-3" /> Mark read
-                    </button>
-                  )}
-                  <button onClick={() => deleteNotif(n.id)} className="text-[10px] flex items-center gap-1 text-rose hover:text-red-400 transition-colors font-medium">
-                    <Trash2 className="h-3 w-3" /> Delete
+                
+                <p className={`text-xs mb-2 leading-relaxed ${n.isRead ? 'text-tertiary' : 'text-secondary'}`}>
+                  {n.message}
+                </p>
+                
+                <div className="flex justify-between items-center mt-2 pt-1.5 border-t border-subtle/30">
+                  <span className={`text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-md ${
+                    n.priority === 'High' 
+                      ? 'bg-rose/10 text-rose' 
+                      : 'bg-blue/10 text-blue'
+                  }`}>
+                    {n.priority}
+                  </span>
+                  
+                  <button 
+                    onClick={(e) => deleteNotif(n.id, e)} 
+                    className="text-tertiary hover:text-rose p-1 hover:bg-hover rounded transition-colors"
+                    title="Delete Notification"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </div>

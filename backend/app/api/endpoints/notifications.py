@@ -19,6 +19,8 @@ def serialize_notif(doc: dict) -> dict:
         "title": doc.get("title", ""),
         "message": doc.get("message", ""),
         "type": doc.get("type", "info"),
+        "category": doc.get("category", "Finance"),
+        "priority": doc.get("priority", "Medium"),
         "isRead": doc.get("isRead", doc.get("read", False)),
         "createdAt": doc.get("createdAt").isoformat() if hasattr(doc.get("createdAt"), "isoformat") else str(doc.get("createdAt")),
     }
@@ -34,16 +36,58 @@ async def store_token(payload: TokenRequest, u: dict = Depends(get_current_user)
     )
     return {"message": "Token stored successfully"}
 
+def get_priority_weight(priority: str) -> int:
+    p = (priority or "Medium").upper()
+    if p == "HIGH":
+        return 2
+    if p == "MEDIUM":
+        return 1
+    return 0
+
 @router.get("", response_model=List[Dict[str, Any]])
 async def get_notifications(u: dict = Depends(get_current_user)):
+    from datetime import datetime, timezone, timedelta
     db = get_db()
-    # Return sorted by newest
-    docs = await db.notifications.find({"userId": u["id"]}).sort("createdAt", -1).to_list(100)
-    # Also support old 'user_id' just in case
-    old_docs = await db.notifications.find({"user_id": u["id"]}).sort("createdAt", -1).to_list(100)
+    
+    # Cleanup read notifications older than 30 days for this user
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+    await db.notifications.delete_many({
+        "$or": [{"userId": u["id"]}, {"user_id": u["id"]}],
+        "$or": [{"isRead": True}, {"read": True}],
+        "createdAt": {"$lt": thirty_days_ago}
+    })
+
+    # Fetch user's notifications
+    docs = await db.notifications.find({"userId": u["id"]}).to_list(100)
+    old_docs = await db.notifications.find({"user_id": u["id"]}).to_list(100)
+    
     all_docs = docs + old_docs
-    all_docs.sort(key=lambda x: x.get("createdAt", datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
-    return [serialize_notif(d) for d in all_docs[:100]]
+    seen = set()
+    deduped_docs = []
+    for d in all_docs:
+        d_id = str(d["_id"])
+        if d_id not in seen:
+            seen.add(d_id)
+            deduped_docs.append(d)
+
+    # Sort notifications:
+    # 1. Newest first
+    deduped_docs.sort(key=lambda x: x.get("createdAt") or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+    # 2. Priority descending
+    deduped_docs.sort(key=lambda x: get_priority_weight(x.get("priority", "Medium")), reverse=True)
+    # 3. Unread first (False < True)
+    deduped_docs.sort(key=lambda x: bool(x.get("isRead", x.get("read", False))))
+
+    return [serialize_notif(d) for d in deduped_docs[:100]]
+
+@router.put("/read-all")
+async def mark_all_read(u: dict = Depends(get_current_user)):
+    db = get_db()
+    res = await db.notifications.update_many(
+        {"$or": [{"userId": u["id"]}, {"user_id": u["id"]}], "isRead": {"$ne": True}},
+        {"$set": {"isRead": True, "read": True, "updatedAt": datetime.now(timezone.utc)}}
+    )
+    return {"message": f"Marked {res.modified_count} notifications as read"}
 
 @router.put("/{nid}/read")
 async def mark_read(nid: str, u: dict = Depends(get_current_user)):

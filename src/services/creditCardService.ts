@@ -18,8 +18,8 @@ export const creditCardService = {
     return data;
   },
 
-  async delete(): Promise<{ message: string }> {
-    const { data } = await api.delete<{ message: string }>('/credit-card');
+  async delete(cardId: string): Promise<{ message: string }> {
+    const { data } = await api.delete<{ message: string }>(`/credit-card/${cardId}`);
     return data;
   },
 };

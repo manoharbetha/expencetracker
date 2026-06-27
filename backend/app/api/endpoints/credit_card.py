@@ -75,12 +75,18 @@ async def upsert_credit_card(
     }
     
     # Upsert based on user_id AND cardName
-    await db.credit_cards.update_one(
+    res = await db.credit_cards.update_one(
         {"user_id": u["id"], "cardName": card_data.cardName},
         {"$set": doc, "$setOnInsert": {"createdAt": now}},
         upsert=True
     )
     invalidate_insights_cache(u["id"])
+    
+    # Send notification if new card added
+    is_new = (res.upserted_id is not None) or (res.matched_count == 0)
+    if is_new:
+        from app.services.fcm_service import send_to_user
+        await send_to_user(u["id"], "New Credit Card Added", f"Credit card '{card_data.cardName}' has been configured.", "credit_card")
     
     card = await db.credit_cards.find_one({"user_id": u["id"], "cardName": card_data.cardName})
     if not card:
@@ -93,11 +99,26 @@ async def upsert_credit_card(
         "creditLimit": float(card.get("creditLimit", 0.0)),
         "createdAt": card.get("createdAt").isoformat() if hasattr(card.get("createdAt"), "isoformat") else str(card.get("createdAt"))
     }
-
-@router.delete("")
-async def delete_credit_card(u: dict = Depends(get_current_user)):
+ 
+@router.delete("/{card_id}")
+async def delete_credit_card(card_id: str, u: dict = Depends(get_current_user)):
     db = get_db()
-    await db.credit_cards.delete_many({"user_id": u["id"]})
-    await db.credit_cards.delete_many({"userId": u["id"]})
+    from bson import ObjectId
+    try:
+        oid = ObjectId(card_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid credit card ID format.")
+        
+    res = await db.credit_cards.delete_one({"_id": oid, "user_id": u["id"]})
+    if res.deleted_count == 0:
+        await db.credit_cards.delete_one({"_id": oid, "userId": u["id"]})
+        
+    # Also delete statement history associated with this card
+    await db.statement_history.delete_many({"credit_card_id": card_id, "user_id": u["id"]})
+    
+    # Send notification
+    from app.services.fcm_service import send_to_user
+    await send_to_user(u["id"], "Credit Card Deleted", "Your credit card configuration has been removed.", "credit_card")
+    
     invalidate_insights_cache(u["id"])
     return {"message": "Credit card deleted successfully."}

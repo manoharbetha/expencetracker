@@ -94,10 +94,12 @@ async def run_daily_jobs():
         title = g.get("goalName", "Goal")
         await send_to_user(uid, "Goal Deadline", f"Your goal '{title}' is due tomorrow!", "goal")
 
-    # Credit Card bill reminders (due in <= 3 days)
+    # Credit Card bill reminders (due in <= 5 days)
     cards_cursor = db.credit_cards.find({})
     async for card in cards_cursor:
-        uid = card["userId"]
+        uid = card.get("user_id", card.get("userId"))
+        if not uid:
+            continue
         pipeline = [
             {"$match": {"user_id": uid, "paymentMethod": "Credit Card"}},
             {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
@@ -124,7 +126,7 @@ async def run_daily_jobs():
                         next_due = date(today.year, today.month + 1, 28)
             
             days_left = (next_due - today).days
-            if 0 <= days_left <= 3:
+            if 0 <= days_left <= 5:
                 # Prevent duplicate notification in the last 24h
                 from datetime import datetime, timezone, timedelta
                 one_day_ago = datetime.now(timezone.utc) - timedelta(days=1)
@@ -135,6 +137,13 @@ async def run_daily_jobs():
                 })
                 if not existing:
                     await send_to_user(uid, "Credit Card Reminder", f"Your credit card payment for '{card.get('cardName')}' is due soon (in {days_left} days).", "credit_card")
+
+    # Auto-cleanup read notifications older than 30 days
+    thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
+    await db.notifications.delete_many({
+        "isRead": True,
+        "createdAt": {"$lt": thirty_days_ago}
+    })
 
 def start_scheduler():
     # Run every day at 9:00 AM
