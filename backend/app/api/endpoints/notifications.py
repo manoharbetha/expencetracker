@@ -122,33 +122,43 @@ async def debug_test_push(u: dict = Depends(get_current_user)):
     tokens = await db.notification_tokens.find({"userId": u["id"]}).to_list(100)
     
     if not tokens:
-        return {"success": False, "message": "No tokens found for user", "tokens_found": 0, "responses": [], "errors": []}
+        return {
+            "firebase_called": False,
+            "error": "No FCM tokens found in database for user.",
+            "stack_trace": None
+        }
         
-    responses = []
-    errors = []
-    
-    for doc in tokens:
-        token = doc.get("fcmToken")
-        if not token:
-            continue
-            
-        try:
-            msg = messaging.Message(
-                notification=messaging.Notification(
-                    title="Backend Debug Push",
-                    body=f"Test push delivery to token ending in {token[-6:]}"
-                ),
-                token=token
-            )
-            response = messaging.send(msg)
-            responses.append({"token": f"...{token[-6:]}", "response_id": response})
-        except Exception as e:
-            import traceback
-            errors.append({"token": f"...{token[-6:]}", "error": str(e), "traceback": traceback.format_exc()})
-            
-    return {
-        "success": len(responses) > 0,
-        "tokens_found": len(tokens),
-        "responses": responses,
-        "errors": errors
-    }
+    token = tokens[0].get("fcmToken")
+    if not token:
+        return {
+            "firebase_called": False,
+            "error": "fcmToken field missing in database document.",
+            "stack_trace": None
+        }
+        
+    try:
+        msg = messaging.Message(
+            notification=messaging.Notification(
+                title="Backend Debug Push",
+                body="Testing direct Firebase delivery from backend."
+            ),
+            token=token
+        )
+        response = messaging.send(msg)
+        return {
+            "tokens_found": len(tokens),
+            "firebase_called": True,
+            "message_id": response,
+            "firebase_response": "Successfully sent message",
+            "error": None
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "tokens_found": len(tokens),
+            "firebase_called": True,
+            "message_id": None,
+            "firebase_response": "Failed to send message",
+            "error": str(e),
+            "stack_trace": traceback.format_exc()
+        }
