@@ -6,7 +6,7 @@ from app.core.config import get_settings
 
 logger = logging.getLogger("expencetracker")
 
-async def categorize_transactions_ai(merchants: List[str]) -> Dict[str, str]:
+async def categorize_transactions_ai(merchants: List[str], groq_client = None) -> Dict[str, str]:
     """
     Takes a list of merchant names, queries Groq, and returns a dictionary 
     mapping merchant name to category.
@@ -15,7 +15,7 @@ async def categorize_transactions_ai(merchants: List[str]) -> Dict[str, str]:
     if not s.groq_api_key or not merchants:
         return {m: "Other" for m in merchants}
         
-    client = AsyncGroq(api_key=s.groq_api_key)
+    client = groq_client or AsyncGroq(api_key=s.groq_api_key)
     
     prompt = """
     Categorize the following merchants into one of these exact categories:
@@ -55,13 +55,13 @@ async def categorize_transactions_ai(merchants: List[str]) -> Dict[str, str]:
         logger.error(f"AI Categorization error occurred: {e}")
         return {m: "Other" for m in merchants}
 
-async def summarize_import_ai(transactions: List[Dict[str, Any]]) -> str:
+async def summarize_import_ai(transactions: List[Dict[str, Any]], groq_client = None) -> str:
     """Generate a brief summary of the imported transactions using Groq."""
     s = get_settings()
     if not s.groq_api_key or not transactions:
         return "Transactions imported."
         
-    client = AsyncGroq(api_key=s.groq_api_key)
+    client = groq_client or AsyncGroq(api_key=s.groq_api_key)
     
     # Calculate totals
     totals = {}

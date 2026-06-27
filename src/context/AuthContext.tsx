@@ -38,6 +38,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       const res = await authService.login(email, password);
+      if (res.access_token) {
+        localStorage.setItem('fintell_token', res.access_token);
+      }
       setUser(res.user);
       toast.success(`Welcome back, ${res.user.name}!`);
     } finally {
@@ -49,6 +52,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       const res = await authService.register(name, email, password, monthlyIncome);
+      if (res.access_token) {
+        localStorage.setItem('fintell_token', res.access_token);
+      }
       setUser(res.user);
       toast.success(`Account created! Welcome, ${res.user.name}!`);
     } finally {
@@ -62,6 +68,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e) {
       console.error(e);
     }
+    localStorage.removeItem('fintell_token');
     setUser(null);
     toast.success('Logged out successfully');
     window.location.href = '/login';

@@ -11,6 +11,7 @@ import { AIFinancialCoach } from '../components/dashboard/AIFinancialCoach';
 import { FinancialHealthCard } from '../components/dashboard/FinancialHealthCard';
 import { PotentialSavingsCard } from '../components/dashboard/PotentialSavingsCard';
 import { RecentNotifications } from '../components/dashboard/RecentNotifications';
+import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 
 import { analyticsService, type DashboardData } from '../services/analyticsService';
 import { expenseService, type Expense } from '../services/expenseService';
@@ -102,11 +103,17 @@ export const Dashboard = () => {
           {aiLoading && !aiData ? (
             <Skeleton className="h-64 rounded-card" />
           ) : (
-            <AIFinancialCoach 
-              insights={aiData?.insights || []} 
-              onRefresh={() => fetchAiInsights(true)} 
-              loading={aiLoading} 
-            />
+            <ErrorBoundary fallback={
+              <div className="glass rounded-card p-5 text-sm text-rose text-center">
+                Failed to load AI Coach insights.
+              </div>
+            }>
+              <AIFinancialCoach 
+                insights={aiData?.insights || []} 
+                onRefresh={() => fetchAiInsights(true)} 
+                loading={aiLoading} 
+              />
+            </ErrorBoundary>
           )}
         </div>
         <div className="xl:col-span-1">

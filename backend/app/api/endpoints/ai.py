@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Body, Depends, Request
 from pymongo import ASCENDING
 
-from app.core.security import get_current_user
+from app.core.security import get_current_user, get_groq_client
 from app.db.mongodb import get_db
 from app.db.crud import serialize_doc
 from app.schemas import ChatRequest, PurchaseImpactRequest, AIResponse
@@ -14,21 +14,22 @@ from app.core.rate_limiter import limiter, user_or_ip_limit_key
 router = APIRouter()
 
 @router.get("/dashboard-insights")
-async def get_dashboard_insights(u: dict = Depends(get_current_user)) -> dict:
-    return await generate_dashboard_insights(get_db(), u["id"], u, force_refresh=False)
+async def get_dashboard_insights(u: dict = Depends(get_current_user), groq_client = Depends(get_groq_client)) -> dict:
+    return await generate_dashboard_insights(get_db(), u["id"], u, force_refresh=False, groq_client=groq_client)
 
 @router.post("/dashboard-insights/refresh")
-async def refresh_dashboard_insights(u: dict = Depends(get_current_user)) -> dict:
-    return await generate_dashboard_insights(get_db(), u["id"], u, force_refresh=True)
+async def refresh_dashboard_insights(u: dict = Depends(get_current_user), groq_client = Depends(get_groq_client)) -> dict:
+    return await generate_dashboard_insights(get_db(), u["id"], u, force_refresh=True, groq_client=groq_client)
 
 @router.post("/budget-suggestions", response_model=AIResponse)
 @limiter.limit("20/minute", key_func=user_or_ip_limit_key)
-async def budget_suggestions(request: Request, u: dict = Depends(get_current_user)) -> AIResponse:
+async def budget_suggestions(request: Request, u: dict = Depends(get_current_user), groq_client = Depends(get_groq_client)) -> AIResponse:
     ctx = await build_ai_context(get_db(), u["id"], u)
     result = await generate_ai_response(
         f"{ctx}\n\nTask: Analyze this user's ACTUAL spending data and give 5 highly specific, "
         "numbered budget recommendations. Reference their actual categories and amounts. "
-        "Do NOT give generic advice. Be concise and actionable."
+        "Do NOT give generic advice. Be concise and actionable.",
+        groq_client=groq_client
     )
     return AIResponse(result=result)
 
@@ -38,11 +39,13 @@ async def ai_chat(
     request: Request,
     chat_data: ChatRequest = Body(...),
     u: dict = Depends(get_current_user),
+    groq_client = Depends(get_groq_client)
 ) -> AIResponse:
     ctx = await build_ai_context(get_db(), u["id"], u)
     result = await generate_ai_response(
         f"{ctx}\n\nUser question: {chat_data.message}\n\n"
-        "Answer concisely and specifically based on the user's actual financial data above."
+        "Answer concisely and specifically based on the user's actual financial data above.",
+        groq_client=groq_client
     )
     now = datetime.now(timezone.utc)
     await get_db().chat_history.insert_many([
@@ -62,45 +65,50 @@ async def purchase_impact(
     request: Request,
     req_data: PurchaseImpactRequest = Body(...),
     u: dict = Depends(get_current_user),
+    groq_client = Depends(get_groq_client)
 ) -> AIResponse:
     ctx = await build_ai_context(get_db(), u["id"], u)
     result = await generate_ai_response(
         f"{ctx}\n\nTask: Analyze the financial impact of buying '{req_data.item}' "
         f"for ₹{req_data.price:,.0f}. Consider: how many months of savings it represents, "
         "which goals it delays, EMI capacity remaining, and monthly cash flow. "
-        "Give a clear BUY / WAIT / AVOID recommendation with reasoning."
+        "Give a clear BUY / WAIT / AVOID recommendation with reasoning.",
+        groq_client=groq_client
     )
     return AIResponse(result=result)
 
 @router.post("/goal-conflicts", response_model=AIResponse)
 @limiter.limit("20/minute", key_func=user_or_ip_limit_key)
-async def goal_conflicts(request: Request, u: dict = Depends(get_current_user)) -> AIResponse:
+async def goal_conflicts(request: Request, u: dict = Depends(get_current_user), groq_client = Depends(get_groq_client)) -> AIResponse:
     ctx = await build_ai_context(get_db(), u["id"], u)
     result = await generate_ai_response(
         f"{ctx}\n\nTask: Analyze ALL financial goals for conflicts and feasibility. "
         "Check if EMI + goal contributions exceed income. Rank goals by priority. "
-        "Flag which goals may be at risk. Suggest specific monthly allocation amounts per goal."
+        "Flag which goals may be at risk. Suggest specific monthly allocation amounts per goal.",
+        groq_client=groq_client
     )
     return AIResponse(result=result)
 
 @router.post("/storytelling", response_model=AIResponse)
 @limiter.limit("20/minute", key_func=user_or_ip_limit_key)
-async def storytelling(request: Request, u: dict = Depends(get_current_user)) -> AIResponse:
+async def storytelling(request: Request, u: dict = Depends(get_current_user), groq_client = Depends(get_groq_client)) -> AIResponse:
     ctx = await build_ai_context(get_db(), u["id"], u)
     result = await generate_ai_response(
         f"{ctx}\n\nTask: Write a friendly, engaging 150-word financial story about this user's month. "
         "Reference their actual spending categories. Highlight specific wins, specific areas to improve, "
-        "and end with a motivational nudge. Be warm, not robotic."
+        "and end with a motivational nudge. Be warm, not robotic.",
+        groq_client=groq_client
     )
     return AIResponse(result=result)
 
 @router.post("/debt-alert", response_model=AIResponse)
 @limiter.limit("20/minute", key_func=user_or_ip_limit_key)
-async def debt_alert(request: Request, u: dict = Depends(get_current_user)) -> AIResponse:
+async def debt_alert(request: Request, u: dict = Depends(get_current_user), groq_client = Depends(get_groq_client)) -> AIResponse:
     ctx = await build_ai_context(get_db(), u["id"], u)
     result = await generate_ai_response(
         f"{ctx}\n\nTask: Analyze upcoming EMIs and the user's active debts specifically. "
         "Which debts have the highest interest cost? How does total EMI compare to income? "
-        "Give specific alerts for THIS month and recommend which debt to prioritize paying down first, with reasoning."
+        "Give specific alerts for THIS month and recommend which debt to prioritize paying down first, with reasoning.",
+        groq_client=groq_client
     )
     return AIResponse(result=result)

@@ -2,16 +2,26 @@ import json
 from datetime import datetime, timezone, timedelta
 import logging
 from groq import AsyncGroq
+from cachetools import TTLCache
 from app.core.config import get_settings
 from app.services import build_ai_context
 
 logger = logging.getLogger("expencetracker")
 
-async def generate_dashboard_insights(db, user_id: str, user: dict, force_refresh: bool = False) -> dict:
+# In-memory TTL cache for dashboard insights (15 minutes)
+insights_cache = TTLCache(maxsize=1024, ttl=900)
+
+def invalidate_insights_cache(user_id: str):
+    insights_cache.pop(user_id, None)
+
+async def generate_dashboard_insights(db, user_id: str, user: dict, force_refresh: bool = False, groq_client: AsyncGroq = None) -> dict:
     now = datetime.now(timezone.utc)
     
-    # Check cache
+    # Check in-memory cache and DB cache
     if not force_refresh:
+        if user_id in insights_cache:
+            return insights_cache[user_id]
+            
         cached = await db.ai_insights.find_one({"userId": user_id})
         if cached:
             cached_time = cached.get("generatedAt")
@@ -19,17 +29,19 @@ async def generate_dashboard_insights(db, user_id: str, user: dict, force_refres
                 if cached_time.tzinfo is None:
                     cached_time = cached_time.replace(tzinfo=timezone.utc)
                 if (now - cached_time) < timedelta(hours=24):
-                    return {
+                    res = {
                         "financialHealthScore": cached.get("financialHealthScore", {}),
                         "potentialSavings": cached.get("potentialSavings", {}),
                         "insights": cached.get("insights", [])
                     }
+                    insights_cache[user_id] = res
+                    return res
                 
     s = get_settings()
     if not s.groq_api_key:
         return {"financialHealthScore": {}, "potentialSavings": {}, "insights": []}
         
-    client = AsyncGroq(api_key=s.groq_api_key)
+    client = groq_client or AsyncGroq(api_key=s.groq_api_key)
     ctx = await build_ai_context(db, user_id, user)
     
     prompt = """
@@ -102,11 +114,13 @@ async def generate_dashboard_insights(db, user_id: str, user: dict, force_refres
             upsert=True
         )
         
-        return {
+        res = {
             "financialHealthScore": data.get("financialHealthScore", {}),
             "potentialSavings": data.get("potentialSavings", {}),
             "insights": data.get("insights", [])
         }
+        insights_cache[user_id] = res
+        return res
         
     except Exception as e:
         logger.error(f"AI Coach error occurred: {e}")

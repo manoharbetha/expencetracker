@@ -5,13 +5,21 @@ const metaEnv = (import.meta as any).env || {};
 const baseURL = metaEnv.VITE_API_URL || (metaEnv.DEV ? 'http://localhost:8000/api/v1' : '');
 
 if (metaEnv.PROD && !metaEnv.VITE_API_URL) {
-  console.warn("Production warning: VITE_API_URL environment variable is not defined. Defaulting to relative path.");
+  throw new Error("Production error: VITE_API_URL environment variable is not defined.");
 }
 
 const api = axios.create({
   baseURL: baseURL || '/api/v1',
   headers: { 'Content-Type': 'application/json' },
   withCredentials: true,
+});
+
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('fintell_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
 });
 
 // Handle 401 globally

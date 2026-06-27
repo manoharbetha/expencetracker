@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 120
     groq_api_key: Optional[str] = None
     groq_model: str = "llama-3.3-70b-versatile"
+    trusted_proxies_str: str = ""
 
     model_config = SettingsConfigDict(
         env_file=os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.env")),
@@ -27,6 +28,10 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> List[str]:
         return [o.strip() for o in self.frontend_origins.split(",") if o.strip()]
+
+    @property
+    def trusted_proxies(self) -> List[str]:
+        return [p.strip() for p in self.trusted_proxies_str.split(",") if p.strip()]
 
     @model_validator(mode="after")
     def validate_production_config(self) -> Settings:

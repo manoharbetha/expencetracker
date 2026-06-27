@@ -1,26 +1,40 @@
 from typing import List, Dict, Any
 from datetime import datetime, timezone
 import logging
+import asyncio
+import io
+import pdfplumber
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Body, Request
 
-from app.core.security import get_current_user
+from app.core.security import get_current_user, get_groq_client
 from app.db.mongodb import get_db
 from app.schemas import ExpenseCreate, MessageResponse
-from app.services.pdf_extractor import extract_transactions_from_pdf
+from app.services.pdf_extractor import extract_transactions_from_pdf, extract_cc_details_with_ai
 from app.services.ai_categorization import categorize_transactions_ai, summarize_import_ai
 from app.services.fcm_service import send_to_user
+from app.services.ai_financial_coach import invalidate_insights_cache
 from app.core.config import get_settings
 from app.core.rate_limiter import limiter, user_or_ip_limit_key
 
 router = APIRouter()
 logger = logging.getLogger("expencetracker")
 
+async def get_existing_hashes(user_id: str, db, limit: int = 1000) -> set:
+    """Helper to retrieve deduplication hashes for a user's recent expenses."""
+    recent_docs = await db.expenses.find({"user_id": user_id}).sort("date", -1).limit(limit).to_list(limit)
+    existing_hashes = set()
+    for d in recent_docs:
+        h = f"{d.get('date')}_{d.get('merchant')}_{d.get('amount')}"
+        existing_hashes.add(h)
+    return existing_hashes
+
 @router.post("/upload")
 @limiter.limit("10/minute", key_func=user_or_ip_limit_key)
 async def upload_statement(
     request: Request,
     file: UploadFile = File(...),
-    u: dict = Depends(get_current_user)
+    u: dict = Depends(get_current_user),
+    groq_client = Depends(get_groq_client)
 ) -> Dict[str, Any]:
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
@@ -36,13 +50,22 @@ async def upload_statement(
         if not content:
             raise HTTPException(status_code=400, detail="Empty file uploaded.")
             
+        # Basic Preamble Check
         if not content.startswith(b"%PDF-"):
             raise HTTPException(status_code=400, detail="Invalid PDF file structure.")
+            
+        # PDF Structural Validation using pdfplumber (Phase 2)
+        try:
+            with pdfplumber.open(io.BytesIO(content)) as test_pdf:
+                _ = len(test_pdf.pages)
+        except Exception as pe:
+            raise HTTPException(status_code=400, detail=f"Malformed or corrupt PDF file structure: {str(pe)}")
+            
     finally:
         await file.close()
         
-    # Extract
-    extraction_result = await extract_transactions_from_pdf(content)
+    # Extract text and parse transactions using single open handle
+    extraction_result = await extract_transactions_from_pdf(content, groq_client=groq_client)
     raw_txns = extraction_result.get("items", [])
     
     # Filter out credits (income) for expense tracking
@@ -68,17 +91,24 @@ async def upload_statement(
             }
         return res
         
-    # Categorize via AI
+    # Gather categories and credit card details in parallel
     merchants = list(set([t["merchant"] for t in expense_txns]))
-    category_mapping = await categorize_transactions_ai(merchants)
+    text_preview = extraction_result.get("text_preview", "")
+    statement_type = extraction_result.get("statement_type", "bank")
+    
+    async def extract_cc_details_or_empty():
+        if statement_type == "credit_card" and text_preview:
+            return await extract_cc_details_with_ai(text_preview, groq_client=groq_client)
+        return {}
+
+    category_mapping, cc_details = await asyncio.gather(
+        categorize_transactions_ai(merchants, groq_client=groq_client),
+        extract_cc_details_or_empty()
+    )
     
     # Duplicate Detection
     db = get_db()
-    recent_docs = await db.expenses.find({"user_id": u["id"]}).sort("date", -1).limit(1000).to_list(1000)
-    existing_hashes = set()
-    for d in recent_docs:
-        h = f"{d.get('date')}_{d.get('merchant')}_{d.get('amount')}"
-        existing_hashes.add(h)
+    existing_hashes = await get_existing_hashes(u["id"], db, 1000)
         
     # Apply categories and check duplicates
     new_count = 0
@@ -97,8 +127,8 @@ async def upload_statement(
     res = {
         "items": expense_txns,
         "message": f"Extracted {len(expense_txns)} transactions.",
-        "statement_type": extraction_result.get("statement_type", "bank"),
-        "cc_details": extraction_result.get("cc_details", {}),
+        "statement_type": statement_type,
+        "cc_details": cc_details,
         "summary": {
             "transactions_found": len(expense_txns),
             "new": new_count,
@@ -117,7 +147,8 @@ async def upload_statement(
 async def confirm_statement(
     request: Request,
     payload: Dict[str, Any] = Body(...),
-    u: dict = Depends(get_current_user)
+    u: dict = Depends(get_current_user),
+    groq_client = Depends(get_groq_client)
 ) -> Dict[str, Any]:
     transactions = payload.get("transactions", [])
     if not transactions:
@@ -161,11 +192,7 @@ async def confirm_statement(
             cc_id = str(res.inserted_id)
 
     # Prevent basic duplicates
-    recent_docs = await db.expenses.find({"user_id": u["id"]}).sort("date", -1).limit(500).to_list(500)
-    existing_hashes = set()
-    for d in recent_docs:
-        h = f"{d.get('date')}_{d.get('merchant')}_{d.get('amount')}"
-        existing_hashes.add(h)
+    existing_hashes = await get_existing_hashes(u["id"], db, 1000)
         
     docs_to_insert = []
     for txn in transactions:
@@ -206,11 +233,14 @@ async def confirm_statement(
     })
     
     # Generate summary
-    summary = await summarize_import_ai(docs_to_insert)
+    summary = await summarize_import_ai(docs_to_insert, groq_client=groq_client)
     
     if inserted_count > 0:
         await send_to_user(u["id"], "Statement Imported", f"{inserted_count} transactions imported via {statement_type}.", "statement")
     
+    # Invalidate cached AI insights since data has changed
+    invalidate_insights_cache(u["id"])
+
     return {
         "message": f"{inserted_count} transactions imported successfully.",
         "summary": summary

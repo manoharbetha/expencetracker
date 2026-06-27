@@ -10,7 +10,7 @@ export default defineConfig({
       devOptions: { enabled: true },
       manifest: {
         name: 'Expense Tracker',
-        short_name: 'Expence',
+        short_name: 'Expense',
         description: 'Track expenses and achieve financial goals.',
         theme_color: '#0f172a',
         background_color: '#0f172a',

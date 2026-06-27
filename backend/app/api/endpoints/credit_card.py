@@ -3,6 +3,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 from app.core.security import get_current_user
 from app.db.mongodb import get_db
 from app.schemas import CreditCardCreate
+from app.services.ai_financial_coach import invalidate_insights_cache
 
 router = APIRouter()
 
@@ -77,6 +78,7 @@ async def upsert_credit_card(
         {"$set": doc, "$setOnInsert": {"createdAt": now}},
         upsert=True
     )
+    invalidate_insights_cache(u["id"])
     
     card = await db.credit_cards.find_one({"user_id": u["id"], "cardName": card_data.cardName})
     if not card:

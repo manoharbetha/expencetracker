@@ -10,6 +10,7 @@ from app.db.mongodb import get_db
 from app.db.crud import create_doc, get_doc, update_doc, delete_doc, serialize_doc
 from app.schemas import ExpenseCreate, ExpenseUpdate, MessageResponse
 from app.services.fcm_service import send_to_user
+from app.services.ai_financial_coach import invalidate_insights_cache
 
 router = APIRouter()
 
@@ -28,6 +29,7 @@ async def create_expense(
     if doc.get("paymentMethod") == "Credit Card":
         await check_credit_card_notifications(u["id"], db)
         
+    invalidate_insights_cache(u["id"])
     return doc
 
 @router.get("")
@@ -80,6 +82,7 @@ async def update_expense(
     if (orig and orig.get("paymentMethod") == "Credit Card") or updated.get("paymentMethod") == "Credit Card":
         await check_credit_card_notifications(u["id"], db)
         
+    invalidate_insights_cache(u["id"])
     return updated
 
 @router.delete("/{expense_id}", response_model=MessageResponse)
@@ -92,6 +95,7 @@ async def delete_expense(expense_id: str, u: dict = Depends(get_current_user)) -
     if orig and orig.get("paymentMethod") == "Credit Card":
         await check_credit_card_notifications(u["id"], db)
         
+    invalidate_insights_cache(u["id"])
     return MessageResponse(message="Expense deleted successfully.")
 
 async def check_credit_card_notifications(uid: str, db):

@@ -8,6 +8,7 @@ from app.db.crud import create_doc, list_docs, get_doc, update_doc, delete_doc
 from app.schemas import GoalCreate, GoalUpdate, MessageResponse
 from app.services import calculate_goal_metrics
 from app.services.fcm_service import send_to_user
+from app.services.ai_financial_coach import invalidate_insights_cache
 
 router = APIRouter()
 
@@ -27,6 +28,7 @@ async def create_goal(
     g = await create_doc(get_db().goals, u["id"], goal_data.model_dump())
     if g.get("name"):
         await send_to_user(u["id"], "Goal Created", f"{g['name']} Goal Added", "goal")
+    invalidate_insights_cache(u["id"])
     return enrich_goal(g)
 
 @router.get("")
@@ -52,9 +54,11 @@ async def update_goal_by_id(
     if g.get("savedAmount", 0) >= g.get("targetAmount", 0) and old_g.get("savedAmount", 0) < old_g.get("targetAmount", 0):
         await send_to_user(u["id"], "Goal Completed", "You achieved your goal", "goal")
         
+    invalidate_insights_cache(u["id"])
     return enrich_goal(g)
 
 @router.delete("/{goal_id}", response_model=MessageResponse)
 async def delete_goal_by_id(goal_id: str, u: dict = Depends(get_current_user)) -> MessageResponse:
     await delete_doc(get_db().goals, u["id"], goal_id)
+    invalidate_insights_cache(u["id"])
     return MessageResponse(message="Goal deleted successfully.")

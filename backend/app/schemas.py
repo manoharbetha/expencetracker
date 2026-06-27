@@ -157,6 +157,23 @@ class NotificationCreate(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=2000)
 
+    @field_validator("message")
+    @classmethod
+    def prevent_prompt_injection(cls, v: str) -> str:
+        import re
+        patterns = [
+            r"(?i)ignore\s+(?:previous|above)\s+instructions?",
+            r"(?i)system\s+override",
+            r"(?i)override\s+system",
+            r"(?i)you\s+are\s+now",
+            r"(?i)system:",
+            r"(?i)assistant:"
+        ]
+        cleaned = v
+        for p in patterns:
+            cleaned = re.sub(p, "", cleaned)
+        return cleaned.strip()
+
 class PurchaseImpactRequest(BaseModel):
     item: str = Field(..., min_length=1, max_length=120)
     price: float = Field(..., gt=0)

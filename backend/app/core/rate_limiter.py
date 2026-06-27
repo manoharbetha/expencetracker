@@ -2,9 +2,21 @@ from jose import jwt
 from fastapi import Request
 from app.core.config import get_settings
 from slowapi import Limiter
-from slowapi.util import get_remote_address
 
-limiter = Limiter(key_func=get_remote_address)
+def custom_get_remote_address(request: Request) -> str:
+    settings = get_settings()
+    xff = request.headers.get("X-Forwarded-For")
+    if xff:
+        ips = [ip.strip() for ip in xff.split(",")]
+        trusted = settings.trusted_proxies
+        for ip in reversed(ips):
+            if ip not in trusted:
+                return ip
+        if ips:
+            return ips[0]
+    return request.client.host if request.client else "127.0.0.1"
+
+limiter = Limiter(key_func=custom_get_remote_address)
 
 def user_or_ip_limit_key(request: Request) -> str:
     token = request.cookies.get("fintell_token")
@@ -24,4 +36,4 @@ def user_or_ip_limit_key(request: Request) -> str:
         except Exception:
             pass
             
-    return get_remote_address(request)
+    return custom_get_remote_address(request)

@@ -1,5 +1,6 @@
 import io
 import json
+import asyncio
 from typing import List, Dict, Any
 import logging
 import pdfplumber
@@ -12,31 +13,30 @@ from app.services.parsers.googlepay_parser import GooglePayParser
 
 logger = logging.getLogger("expencetracker")
 
-async def extract_transactions_from_pdf(file_bytes: bytes) -> Dict[str, Any]:
+async def extract_transactions_from_pdf(file_bytes: bytes, groq_client: AsyncGroq = None) -> Dict[str, Any]:
     """
     Coordinator function that detects source, routes to the correct parser,
     and falls back to Groq AI if zero transactions are found.
     """
-    # 1. Detect Source
     text_preview = ""
     pages_read = 0
+    transactions = []
+    source = "UNKNOWN"
+    statement_type = "bank"
+    
+    # 1. Open PDF once to extract text and parse transactions
     try:
         with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
             pages_read = len(pdf.pages)
-            for page in pdf.pages: # scan all pages
+            for page in pdf.pages:
                 text = page.extract_text()
                 if text:
                     text_preview += text + "\n"
-    except Exception as e:
-        return {"items": [], "error": f"PDF read error: {e}", "source": "UNKNOWN", "statement_type": "bank"}
-        
-    source = detect_statement_source(text_preview)
-    statement_type = detect_statement_type(text_preview)
-    
-    # 2. Route to Parser
-    transactions = []
-    try:
-        with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+            
+            source = detect_statement_source(text_preview)
+            statement_type = detect_statement_type(text_preview)
+            
+            # 2. Parse using the opened PDF handle
             if source == "GOOGLE_PAY":
                 parser = GooglePayParser(pdf)
             else:
@@ -44,34 +44,30 @@ async def extract_transactions_from_pdf(file_bytes: bytes) -> Dict[str, Any]:
                 
             transactions = parser.extract()
     except Exception as e:
-        logger.error(f"Parser error occurred: {e}")
+        logger.error(f"PDF read or parser error occurred: {e}")
         
     # 3. AI Fallback if Parser fails
     fallback_used = False
     if not transactions and len(text_preview.strip()) > 50:
         fallback_used = True
-        transactions = await extract_with_ai_fallback(text_preview)
-
-    cc_details = {}
-    if statement_type == "credit_card":
-        cc_details = await extract_cc_details_with_ai(text_preview)
+        transactions = await extract_with_ai_fallback(text_preview, groq_client=groq_client)
 
     return {
         "items": transactions,
         "source": source,
         "statement_type": statement_type,
-        "cc_details": cc_details,
+        "text_preview": text_preview,
         "pages_read": pages_read,
         "text_length": len(text_preview),
         "fallback_used": fallback_used,
         "error": None if transactions else "Parser pattern mismatch. AI fallback triggered but yielded 0 results."
     }
 
-async def extract_cc_details_with_ai(text_chunk: str) -> Dict[str, Any]:
+async def extract_cc_details_with_ai(text_chunk: str, groq_client: AsyncGroq = None) -> Dict[str, Any]:
     s = get_settings()
     if not s.groq_api_key:
         return {}
-    client = AsyncGroq(api_key=s.groq_api_key)
+    client = groq_client or AsyncGroq(api_key=s.groq_api_key)
     prompt = """
     Extract credit card details from this statement text.
     Return ONLY a JSON object with these keys (use null if not found):
@@ -96,12 +92,12 @@ async def extract_cc_details_with_ai(text_chunk: str) -> Dict[str, Any]:
         logger.error(f"Groq CC extraction failed: {e}")
     return {}
 
-async def extract_with_ai_fallback(text_chunk: str) -> List[Dict[str, Any]]:
+async def extract_with_ai_fallback(text_chunk: str, groq_client: AsyncGroq = None) -> List[Dict[str, Any]]:
     s = get_settings()
     if not s.groq_api_key:
         return []
         
-    client = AsyncGroq(api_key=s.groq_api_key)
+    client = groq_client or AsyncGroq(api_key=s.groq_api_key)
     
     # Split text into manageable chunks (approx 6000 chars by line)
     lines = text_chunk.split('\n')
@@ -116,9 +112,7 @@ async def extract_with_ai_fallback(text_chunk: str) -> List[Dict[str, Any]]:
     if current_chunk:
         chunks.append(current_chunk)
         
-    all_transactions = []
-    
-    for chunk in chunks:
+    async def process_chunk(chunk: str) -> List[Dict[str, Any]]:
         prompt = """
         Extract all financial transactions from this text. Ignore 'Fuel Surcharge Waiver', 'Reward Point', 'Payment Received', 'Credits', 'Opening Balance'.
         Return ONLY a JSON object with a single key "transactions" which is an array of objects.
@@ -140,8 +134,15 @@ async def extract_with_ai_fallback(text_chunk: str) -> List[Dict[str, Any]]:
             content = resp.choices[0].message.content
             if content:
                 data = json.loads(content)
-                all_transactions.extend(data.get("transactions", []))
+                return data.get("transactions", [])
         except Exception as e:
             logger.error(f"Groq fallback failed for chunk: {e}")
+        return []
+
+    all_transactions = []
+    # Parallelize Groq calls for all chunks using asyncio.gather
+    results = await asyncio.gather(*[process_chunk(chunk) for chunk in chunks])
+    for res in results:
+        all_transactions.extend(res)
             
     return all_transactions

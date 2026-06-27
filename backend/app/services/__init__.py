@@ -41,13 +41,13 @@ _FALLBACK = (
     "automate your SIPs and EMIs, and review your budget monthly."
 )
 
-async def generate_ai_response(prompt: str) -> str:
+async def generate_ai_response(prompt: str, groq_client = None) -> str:
     s = get_settings()
     if not s.groq_api_key:
         return _FALLBACK
     try:
         from groq import AsyncGroq
-        client = AsyncGroq(api_key=s.groq_api_key)
+        client = groq_client or AsyncGroq(api_key=s.groq_api_key)
         
         chat_completion = await client.chat.completions.create(
             messages=[

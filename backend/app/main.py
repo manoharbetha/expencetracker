@@ -29,6 +29,15 @@ async def lifespan(_app: FastAPI):
     await connect_to_mongo()
     start_scheduler()
     initialize_firebase()
+    
+    # Initialize Groq client
+    from groq import AsyncGroq
+    settings = get_settings()
+    if settings.groq_api_key:
+        _app.state.groq_client = AsyncGroq(api_key=settings.groq_api_key)
+    else:
+        _app.state.groq_client = None
+        
     yield
     # Shutdown
     stop_scheduler()
@@ -51,8 +60,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Cookie"],
 )
 
 @app.middleware("http")
@@ -85,22 +94,29 @@ async def generic_err(_req: Request, exc: Exception) -> JSONResponse:
     return JSONResponse(status_code=500, content={"detail": "Internal server error."})
 
 # Health
+_last_db_ping_time = 0
+_last_db_ping_status = "disconnected"
+
 @app.get("/health", tags=["System"])
 async def health() -> dict:
-    db_status = "disconnected"
-    try:
-        if db_manager.client is not None:
-            await db_manager.client.admin.command('ping')
-            db_status = "connected"
-    except Exception as e:
-        db_status = f"error: {str(e)}"
+    global _last_db_ping_time, _last_db_ping_status
+    now = time.time()
+    if now - _last_db_ping_time > 5:
+        try:
+            if db_manager.client is not None:
+                await db_manager.client.admin.command('ping')
+                _last_db_ping_status = "connected"
+            else:
+                _last_db_ping_status = "disconnected"
+        except Exception as e:
+            _last_db_ping_status = f"error: {str(e)}"
+        _last_db_ping_time = now
+        
+    if _last_db_ping_status != "connected":
+        return JSONResponse(status_code=503, content={"status": "error"})
         
     return {
-        "status": "ok" if db_status == "connected" else "error",
-        "database": db_status,
-        "service": "Expence Tracker API",
-        "version": "4.0.0",
-        "uptime": round(time.time() - startup_time, 2)
+        "status": "ok"
     }
 
 # Routers
