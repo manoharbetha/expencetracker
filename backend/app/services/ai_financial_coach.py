@@ -39,7 +39,24 @@ async def generate_dashboard_insights(db, user_id: str, user: dict, force_refres
                 
     s = get_settings()
     if not s.groq_api_key:
-        return {"financialHealthScore": {}, "potentialSavings": {}, "insights": []}
+        logger.warning("Groq API key is missing. Attempting to load cached insights as fallback.")
+        try:
+            cached = await db.ai_insights.find_one({"userId": user_id})
+            if cached:
+                return {
+                    "financialHealthScore": cached.get("financialHealthScore", {}),
+                    "potentialSavings": cached.get("potentialSavings", {}),
+                    "insights": cached.get("insights", []),
+                    "error": "AI financial coach is currently offline (API key missing). Showing your previous analysis."
+                }
+        except Exception as db_err:
+            logger.error(f"Failed to fetch cached AI insights fallback: {db_err}")
+        return {
+            "financialHealthScore": {},
+            "potentialSavings": {},
+            "insights": [],
+            "error": "AI financial coach is currently offline (API key missing)."
+        }
         
     client = groq_client or AsyncGroq(api_key=s.groq_api_key)
     ctx = await build_ai_context(db, user_id, user)
@@ -99,13 +116,28 @@ async def generate_dashboard_insights(db, user_id: str, user: dict, force_refres
             raise ValueError("Empty response from Groq")
             
         data = json.loads(content)
+        insights_list = data.get("insights", [])
+        
+        # If generation resulted in 0 insights but user has expenses, treat as failure and fallback
+        if not insights_list:
+            expense_count = await db.expenses.count_documents({"user_id": user_id})
+            if expense_count > 0:
+                logger.warning("Groq successfully returned JSON but insights array was empty. Falling back to cached insights.")
+                cached = await db.ai_insights.find_one({"userId": user_id})
+                if cached:
+                    return {
+                        "financialHealthScore": cached.get("financialHealthScore", {}),
+                        "potentialSavings": cached.get("potentialSavings", {}),
+                        "insights": cached.get("insights", []),
+                        "error": "Unable to refresh AI insights (Empty results from LLM). Showing your previous analysis."
+                    }
         
         # Save to cache
         cache_doc = {
             "userId": user_id,
             "financialHealthScore": data.get("financialHealthScore", {}),
             "potentialSavings": data.get("potentialSavings", {}),
-            "insights": data.get("insights", []),
+            "insights": insights_list,
             "generatedAt": now
         }
         await db.ai_insights.update_one(
@@ -117,7 +149,7 @@ async def generate_dashboard_insights(db, user_id: str, user: dict, force_refres
         res = {
             "financialHealthScore": data.get("financialHealthScore", {}),
             "potentialSavings": data.get("potentialSavings", {}),
-            "insights": data.get("insights", [])
+            "insights": insights_list
         }
         insights_cache[user_id] = res
         return res
