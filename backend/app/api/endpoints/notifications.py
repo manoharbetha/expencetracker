@@ -2,17 +2,14 @@ from typing import List, Dict, Any
 from datetime import datetime, timezone
 from bson import ObjectId
 from fastapi import APIRouter, Body, Depends, HTTPException
-from pydantic import BaseModel
-import firebase_admin
-from firebase_admin import messaging
+
 
 from app.core.security import get_current_user
 from app.db.mongodb import get_db
 
 router = APIRouter()
 
-class TokenRequest(BaseModel):
-    fcmToken: str
+
 
 def serialize_notif(doc: dict) -> dict:
     return {
@@ -27,16 +24,7 @@ def serialize_notif(doc: dict) -> dict:
         "createdAt": doc.get("createdAt").isoformat() if hasattr(doc.get("createdAt"), "isoformat") else str(doc.get("createdAt")),
     }
 
-@router.post("/token", status_code=201)
-async def store_token(payload: TokenRequest, u: dict = Depends(get_current_user)):
-    db = get_db()
-    # Upsert token to prevent duplicates
-    await db.notification_tokens.update_one(
-        {"userId": u["id"], "fcmToken": payload.fcmToken},
-        {"$set": {"userId": u["id"], "fcmToken": payload.fcmToken, "createdAt": datetime.now(timezone.utc)}},
-        upsert=True
-    )
-    return {"message": "Token stored successfully"}
+
 
 def get_priority_weight(priority: str) -> int:
     p = (priority or "Medium").upper()
@@ -116,49 +104,4 @@ async def delete_notification(nid: str, u: dict = Depends(get_current_user)):
         raise HTTPException(404, "Notification not found")
     return {"message": "Deleted successfully"}
 
-@router.post("/debug/test-push")
-async def debug_test_push(u: dict = Depends(get_current_user)):
-    db = get_db()
-    tokens = await db.notification_tokens.find({"userId": u["id"]}).to_list(100)
-    
-    if not tokens:
-        return {
-            "firebase_called": False,
-            "error": "No FCM tokens found in database for user.",
-            "stack_trace": None
-        }
-        
-    token = tokens[0].get("fcmToken")
-    if not token:
-        return {
-            "firebase_called": False,
-            "error": "fcmToken field missing in database document.",
-            "stack_trace": None
-        }
-        
-    try:
-        msg = messaging.Message(
-            notification=messaging.Notification(
-                title="Backend Debug Push",
-                body="Testing direct Firebase delivery from backend."
-            ),
-            token=token
-        )
-        response = messaging.send(msg)
-        return {
-            "tokens_found": len(tokens),
-            "firebase_called": True,
-            "message_id": response,
-            "firebase_response": "Successfully sent message",
-            "error": None
-        }
-    except Exception as e:
-        import traceback
-        return {
-            "tokens_found": len(tokens),
-            "firebase_called": True,
-            "message_id": None,
-            "firebase_response": "Failed to send message",
-            "error": str(e),
-            "stack_trace": traceback.format_exc()
-        }
+

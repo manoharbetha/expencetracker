@@ -55,7 +55,7 @@ export const Settings = () => {
   return (
     <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
       <aside className="glass rounded-card p-3">
-        {['Profile', 'Income', 'Theme', 'Notifications', 'Danger Zone'].map((item) => (
+        {['Profile', 'Income', 'Theme', 'Danger Zone'].map((item) => (
           <button key={item} className="block w-full rounded px-3 py-2 text-left text-sm text-secondary hover:bg-hover">
             {item}
           </button>
@@ -97,20 +97,6 @@ export const Settings = () => {
           </div>
         </div>
         
-        <div className="glass rounded-card p-5">
-          <h2 className="mb-4 font-bold">Notifications</h2>
-          <p className="text-secondary text-sm mb-4">Receive alerts for goals, budget utilization, and AI insights.</p>
-          <Button 
-            variant="primary" 
-            onClick={async () => {
-              const { requestNotificationPermission } = await import('../services/fcm');
-              const success = await requestNotificationPermission();
-              if (success) toast.success('Notifications enabled!');
-            }}
-          >
-            Enable Notifications
-          </Button>
-        </div>
 
         <div className="glass rounded-card p-5 border border-rose/30 bg-rose/5">
           <h2 className="mb-2 font-bold text-rose">Danger Zone</h2>

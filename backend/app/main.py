@@ -15,7 +15,7 @@ from slowapi import _rate_limit_exceeded_handler
 
 from app.db.mongodb import connect_to_mongo, close_mongo_connection, db_manager
 from app.core.scheduler import start_scheduler, stop_scheduler
-from app.services.fcm_service import initialize_firebase
+
 
 from app.api.endpoints import auth, expenses, goals, dashboard, ai, debts, notifications, statements, notepad, credit_card
 from app.api.endpoints.settings import router as settings_router
@@ -29,7 +29,7 @@ async def lifespan(_app: FastAPI):
     # Startup
     await connect_to_mongo()
     start_scheduler()
-    initialize_firebase()
+
     
     # Initialize Groq client
     from groq import AsyncGroq

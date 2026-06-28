@@ -48,14 +48,6 @@ export const Navbar = () => {
 
   useEffect(() => { 
     fetchNotifications();
-    
-    // Listen to Firebase foreground messages
-    import('../../services/fcm').then(({ onForegroundMessage }) => {
-      onForegroundMessage((payload) => {
-        console.log('Received foreground message:', payload);
-        fetchNotifications(); // Refresh notifications to show the new one
-      });
-    });
   }, []);
 
   const handleSearch = async (val: string) => {

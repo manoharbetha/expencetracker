@@ -1,5 +1,4 @@
 import { initializeApp } from "firebase/app";
-import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCPSvqAZU8p6JFN8o6wGQLf-Au4v4xZU1M",
@@ -11,7 +10,4 @@ const firebaseConfig = {
   measurementId: "G-ZLG024WHSY"
 };
 
-const app = initializeApp(firebaseConfig);
-export const messaging = typeof window !== "undefined" && "serviceWorker" in navigator ? getMessaging(app) : null;
-
-export { getToken, onMessage };
+export const app = initializeApp(firebaseConfig);
