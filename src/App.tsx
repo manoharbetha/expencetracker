@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useLocation, useRoutes } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { routes } from './routes';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 
@@ -33,6 +34,7 @@ export default function App() {
         </AnimatePresence>
         <Toaster position="top-right" toastOptions={{ style: { background: '#131920', color: '#f1f5f9', border: '1px solid #243044' } }} />
       </ErrorBoundary>
+      <SpeedInsights />
     </QueryClientProvider>
   );
 }
