@@ -75,14 +75,7 @@ class Settings(BaseSettings):
                     if "localhost" in origin or "127.0.0.1" in origin:
                         errors.append(f"CORS_ORIGINS cannot contain localhost origins in production: '{origin}'.")
                         
-            # 5. Firebase Validation (if enabled/provided)
-            firebase_creds = os.environ.get("FIREBASE_CREDENTIALS")
-            if firebase_creds:
-                try:
-                    json.loads(firebase_creds)
-                except Exception:
-                    errors.append("FIREBASE_CREDENTIALS must be a valid JSON string.")
-                    
+
             if errors:
                 error_msg = "\n".join([f"  - {err}" for err in errors])
                 raise ValueError(
