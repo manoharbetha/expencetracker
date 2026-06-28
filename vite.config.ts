@@ -21,4 +21,22 @@ export default defineConfig({
   server: {
     port: 5173,
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => {
+          if (id.includes('three') || id.includes('@react-three'))
+            return 'chunk-three';
+          if (id.includes('framer-motion') || id.includes('gsap') || id.includes('lenis'))
+            return 'chunk-motion';
+          if (id.includes('recharts') || id.includes('d3'))
+            return 'chunk-charts';
+          if (id.includes('firebase'))
+            return 'chunk-firebase';
+          if (id.includes('node_modules'))
+            return 'chunk-vendor';
+        },
+      },
+    },
+  },
 });

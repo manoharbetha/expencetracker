@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { X, Trash2, Bell, DollarSign, CreditCard, TrendingUp, Target, Brain, Settings, Check } from 'lucide-react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 interface Notification {
   id: string;
@@ -24,6 +25,7 @@ interface Props {
 export const NotificationDrawer = ({ isOpen, onClose, unreadCount, setUnreadCount }: Props) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (isOpen) {
@@ -56,6 +58,30 @@ export const NotificationDrawer = ({ isOpen, onClose, unreadCount, setUnreadCoun
       // Rollback on error
       fetchNotifications();
       toast.error('Failed to mark as read');
+    }
+  };
+
+  const handleNotificationClick = async (n: Notification) => {
+    if (!n.isRead) {
+      await markAsRead(n.id);
+    }
+    onClose();
+    
+    const category = (n.category || '').toLowerCase();
+    const type = (n.type || '').toLowerCase();
+    
+    if (type === 'budget' || category === 'budget') {
+      navigate('/dashboard');
+    } else if (type === 'credit_card' || category === 'credit card' || category === 'creditcard') {
+      navigate('/credit-card');
+    } else if (type === 'goal' || category === 'goals') {
+      navigate('/goals');
+    } else if (type === 'statement' || n.title.toLowerCase().includes('statement')) {
+      navigate('/import');
+    } else if (type === 'debt' || category === 'debt') {
+      navigate('/debt');
+    } else {
+      navigate('/dashboard');
     }
   };
 
@@ -151,7 +177,7 @@ export const NotificationDrawer = ({ isOpen, onClose, unreadCount, setUnreadCoun
             notifications.map(n => (
               <div 
                 key={n.id} 
-                onClick={() => !n.isRead && markAsRead(n.id)}
+                onClick={() => handleNotificationClick(n)}
                 className={`p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
                   n.isRead 
                     ? 'bg-surface/10 border-transparent hover:bg-surface/20 opacity-70' 

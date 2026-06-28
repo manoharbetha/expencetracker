@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import Lenis from '@studio-freight/lenis';
@@ -6,8 +6,8 @@ import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { ArrowRight, Bot, Target, Shield, Wallet, Zap, Brain, Sparkles, Receipt, CreditCard } from 'lucide-react';
 
-import { Scene3D } from '../../components/landing/Scene3D';
-import { Hero3D } from '../../components/landing/Hero3D';
+const Scene3D = lazy(() => import('../../components/landing/Scene3D').then(m => ({ default: m.Scene3D })));
+const Hero3D = lazy(() => import('../../components/landing/Hero3D').then(m => ({ default: m.Hero3D })));
 import { MagneticButton } from '../../components/landing/MagneticButton';
 import { Button } from '../../components/ui/Button';
 
@@ -64,7 +64,9 @@ export const Landing = () => {
       {/* SECTION 1: HERO */}
       <section className="relative min-h-[150vh]">
         {/* 3D WebGL Aurora Background */}
-        <Scene3D />
+        <Suspense fallback={<div className="absolute inset-0 bg-[#050816]" />}>
+          <Scene3D />
+        </Suspense>
         
         {/* Navigation */}
         <nav className="absolute top-0 w-full z-50 flex items-center justify-between px-6 py-6 max-w-7xl mx-auto left-0 right-0 mix-blend-difference">
@@ -117,7 +119,9 @@ export const Landing = () => {
 
         {/* Floating Dashboard Layers */}
         <div className="pointer-events-auto relative z-20 -mt-32">
-          <Hero3D />
+          <Suspense fallback={<div className="h-[500px] w-full" />}>
+            <Hero3D />
+          </Suspense>
         </div>
       </section>
 

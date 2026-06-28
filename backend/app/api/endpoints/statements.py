@@ -11,7 +11,7 @@ from app.db.mongodb import get_db
 from app.schemas import ExpenseCreate, MessageResponse
 from app.services.pdf_extractor import extract_transactions_from_pdf, extract_cc_details_with_ai
 from app.services.ai_categorization import categorize_transactions_ai, summarize_import_ai
-from app.services.fcm_service import send_to_user
+from app.services.fcm_service import send_to_user, check_budget_notifications, check_credit_card_utilization_notifications
 from app.services.ai_financial_coach import invalidate_insights_cache
 from app.core.config import get_settings
 from app.core.rate_limiter import limiter, user_or_ip_limit_key
@@ -65,7 +65,13 @@ async def upload_statement(
         await file.close()
         
     # Extract text and parse transactions using single open handle
-    extraction_result = await extract_transactions_from_pdf(content, groq_client=groq_client)
+    try:
+        extraction_result = await extract_transactions_from_pdf(content, groq_client=groq_client)
+    except Exception as e:
+        logger.error(f"Statement extraction failed: {e}")
+        await send_to_user(u["id"], "Statement Import Failed", f"Failed to import statement {file.filename}: {str(e)}", "statement")
+        raise HTTPException(status_code=400, detail=f"Failed to process statement: {str(e)}")
+        
     raw_txns = extraction_result.get("items", [])
     
     # Filter out credits (income) for expense tracking
@@ -73,6 +79,9 @@ async def upload_statement(
     
     settings = get_settings()
     if not expense_txns:
+        # Trigger AI statement parsing failure notification
+        await send_to_user(u["id"], "AI Statement Parsing Failed", f"AI parser failed to extract transactions from {file.filename}.", "statement")
+        
         res = {
             "items": [], 
             "message": "No expense transactions found."
@@ -150,124 +159,134 @@ async def confirm_statement(
     u: dict = Depends(get_current_user),
     groq_client = Depends(get_groq_client)
 ) -> Dict[str, Any]:
-    transactions = payload.get("transactions", [])
-    if not transactions:
-        raise HTTPException(status_code=400, detail="No transactions to import.")
-        
-    statement_type = payload.get("statement_type", "bank")
-    cc_details = payload.get("cc_details", {})
-    filename = payload.get("filename", "unknown.pdf")
-    credit_card_id = payload.get("credit_card_id")
-    conflict_resolution = payload.get("conflict_resolution")
-    
-    db = get_db()
-    inserted_count = 0
-    now = datetime.now(timezone.utc)
-    
-    cc_id = None
-    statement_period = cc_details.get("statement_period")
-    
-    if statement_type == "credit_card":
-        if not credit_card_id:
-            raise HTTPException(status_code=400, detail="Credit card ID is required for credit card statements.")
+    try:
+        transactions = payload.get("transactions", [])
+        if not transactions:
+            raise HTTPException(status_code=400, detail="No transactions to import.")
             
-        from bson import ObjectId
-        try:
-            cc = await db.credit_cards.find_one({"_id": ObjectId(credit_card_id), "user_id": u["id"]})
-            if not cc:
-                raise HTTPException(status_code=404, detail="Credit card not found.")
-        except Exception:
-            raise HTTPException(status_code=400, detail="Invalid credit card ID.")
-            
-        cc_id = credit_card_id
+        statement_type = payload.get("statement_type", "bank")
+        cc_details = payload.get("cc_details", {})
+        filename = payload.get("filename", "unknown.pdf")
+        credit_card_id = payload.get("credit_card_id")
+        conflict_resolution = payload.get("conflict_resolution")
         
-        if statement_period:
-            existing_stmt = await db.statement_history.find_one({
-                "credit_card_id": cc_id,
-                "statement_period": statement_period,
-                "user_id": u["id"]
-            })
-            if existing_stmt:
-                if conflict_resolution == "replace":
-                    await db.expenses.delete_many({
-                        "creditCardId": cc_id,
-                        "statement_period": statement_period,
-                        "user_id": u["id"]
-                    })
-                    await db.statement_history.delete_many({
-                        "credit_card_id": cc_id,
-                        "statement_period": statement_period,
-                        "user_id": u["id"]
-                    })
-                elif conflict_resolution != "append":
-                    raise HTTPException(status_code=409, detail="This statement has already been imported.")
+        db = get_db()
+        inserted_count = 0
+        now = datetime.now(timezone.utc)
+        
+        cc_id = None
+        statement_period = cc_details.get("statement_period")
+        
+        if statement_type == "credit_card":
+            if not credit_card_id:
+                raise HTTPException(status_code=400, detail="Credit card ID is required for credit card statements.")
+                
+            from bson import ObjectId
+            try:
+                cc = await db.credit_cards.find_one({"_id": ObjectId(credit_card_id), "user_id": u["id"]})
+                if not cc:
+                    raise HTTPException(status_code=404, detail="Credit card not found.")
+            except Exception:
+                raise HTTPException(status_code=400, detail="Invalid credit card ID.")
+                
+            cc_id = credit_card_id
+            
+            if statement_period:
+                existing_stmt = await db.statement_history.find_one({
+                    "credit_card_id": cc_id,
+                    "statement_period": statement_period,
+                    "user_id": u["id"]
+                })
+                if existing_stmt:
+                    if conflict_resolution == "replace":
+                        await db.expenses.delete_many({
+                            "creditCardId": cc_id,
+                            "statement_period": statement_period,
+                            "user_id": u["id"]
+                        })
+                        await db.statement_history.delete_many({
+                            "credit_card_id": cc_id,
+                            "statement_period": statement_period,
+                            "user_id": u["id"]
+                        })
+                    elif conflict_resolution != "append":
+                        raise HTTPException(status_code=409, detail="This statement has already been imported.")
 
-    existing_hashes = await get_existing_hashes(u["id"], db, 1000)
-        
-    docs_to_insert = []
-    for txn in transactions:
-        if txn.get("status") in ["Duplicate", "Skipped"] and conflict_resolution != "replace":
-            continue
+        existing_hashes = await get_existing_hashes(u["id"], db, 1000)
             
-        h = f"{txn.get('date')}_{txn.get('merchant')}_{txn.get('amount')}"
-        if h in existing_hashes and conflict_resolution != "replace":
-            continue 
+        docs_to_insert = []
+        for txn in transactions:
+            if txn.get("status") in ["Duplicate", "Skipped"] and conflict_resolution != "replace":
+                continue
+                
+            h = f"{txn.get('date')}_{txn.get('merchant')}_{txn.get('amount')}"
+            if h in existing_hashes and conflict_resolution != "replace":
+                continue 
+                
+            doc = {
+                "user_id": u["id"],
+                "amount": float(txn.get("amount", 0)),
+                "category": txn.get("category", "Other"),
+                "paymentMethod": "Credit Card" if statement_type == "credit_card" else "Bank",
+                "creditCardId": cc_id,
+                "date": txn.get("date"),
+                "description": txn.get("description", ""),
+                "merchant": txn.get("merchant", ""),
+                "source": "statement_import",
+                "createdAt": now,
+                "updatedAt": now
+            }
+            if statement_period and statement_type == "credit_card":
+                doc["statement_period"] = statement_period
+                
+            docs_to_insert.append(doc)
+            existing_hashes.add(h)
             
-        doc = {
+        if docs_to_insert:
+            await db.expenses.insert_many(docs_to_insert)
+            inserted_count = len(docs_to_insert)
+            
+        # Store import history
+        hist = {
             "user_id": u["id"],
-            "amount": float(txn.get("amount", 0)),
-            "category": txn.get("category", "Other"),
-            "paymentMethod": "Credit Card" if statement_type == "credit_card" else "Bank",
-            "creditCardId": cc_id,
-            "date": txn.get("date"),
-            "description": txn.get("description", ""),
-            "merchant": txn.get("merchant", ""),
-            "source": "statement_import",
-            "createdAt": now,
-            "updatedAt": now
+            "filename": filename,
+            "statementType": statement_type,
+            "transactionsImported": inserted_count,
+            "status": "Success",
+            "importedAt": now.isoformat()
         }
-        if statement_period and statement_type == "credit_card":
-            doc["statement_period"] = statement_period
-            
-        docs_to_insert.append(doc)
-        existing_hashes.add(h)
+        if statement_type == "credit_card":
+            hist["credit_card_id"] = cc_id
+            if statement_period:
+                hist["statement_period"] = statement_period
+            if cc_details.get("due_date"):
+                hist["due_date"] = cc_details["due_date"]
+            if cc_details.get("statement_date"):
+                hist["statement_date"] = cc_details["statement_date"]
+            if cc_details.get("outstanding"):
+                hist["outstanding_amount"] = cc_details["outstanding"]
+            if cc_details.get("minimum_due"):
+                hist["minimum_due"] = cc_details["minimum_due"]
+                
+        await db.statement_history.insert_one(hist)
         
-    if docs_to_insert:
-        await db.expenses.insert_many(docs_to_insert)
-        inserted_count = len(docs_to_insert)
+        summary = await summarize_import_ai(docs_to_insert, groq_client=groq_client)
         
-    # Store import history
-    hist = {
-        "user_id": u["id"],
-        "filename": filename,
-        "statementType": statement_type,
-        "transactionsImported": inserted_count,
-        "status": "Success",
-        "importedAt": now.isoformat()
-    }
-    if statement_type == "credit_card":
-        hist["credit_card_id"] = cc_id
-        if statement_period:
-            hist["statement_period"] = statement_period
-        if cc_details.get("due_date"):
-            hist["due_date"] = cc_details["due_date"]
-        if cc_details.get("statement_date"):
-            hist["statement_date"] = cc_details["statement_date"]
-        if cc_details.get("outstanding"):
-            hist["outstanding_amount"] = cc_details["outstanding"]
-        if cc_details.get("minimum_due"):
-            hist["minimum_due"] = cc_details["minimum_due"]
-            
-    await db.statement_history.insert_one(hist)
-    
-    summary = await summarize_import_ai(docs_to_insert, groq_client=groq_client)
-    
-    if inserted_count > 0:
-        await send_to_user(u["id"], "Statement Imported", f"{inserted_count} transactions imported via {statement_type}.", "statement")
-    
-    invalidate_insights_cache(u["id"])
+        if inserted_count > 0:
+            await send_to_user(u["id"], "Statement Imported", f"{inserted_count} transactions imported via {statement_type}.", "statement")
+            # Immediately run checks
+            await check_budget_notifications(u["id"], db)
+            await check_credit_card_utilization_notifications(u["id"], db)
+        
+        invalidate_insights_cache(u["id"])
 
-    return {
-        "message": f"{inserted_count} transactions imported successfully.",
-        "summary": summary
-    }
+        return {
+            "message": f"{inserted_count} transactions imported successfully.",
+            "summary": summary
+        }
+    except Exception as e:
+        logger.error(f"Statement confirmation failed: {e}")
+        await send_to_user(u["id"], "Statement Import Failed", f"Failed to confirm statement import: {str(e)}", "statement")
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(status_code=400, detail=str(e))

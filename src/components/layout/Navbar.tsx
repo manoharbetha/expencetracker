@@ -48,6 +48,19 @@ export const Navbar = () => {
 
   useEffect(() => { 
     fetchNotifications();
+
+    const handleUpdate = () => {
+      fetchNotifications();
+    };
+    window.addEventListener('notification-updated', handleUpdate);
+
+    // Lightweight fallback polling every 60 seconds
+    const interval = setInterval(fetchNotifications, 60000);
+
+    return () => {
+      window.removeEventListener('notification-updated', handleUpdate);
+      clearInterval(interval);
+    };
   }, []);
 
   const handleSearch = async (val: string) => {

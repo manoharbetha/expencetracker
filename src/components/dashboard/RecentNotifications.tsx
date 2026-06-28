@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { Skeleton } from '../../components/ui/Skeleton';
+import { useNavigate } from 'react-router-dom';
 
 interface RecentNotificationsProps {
   notifications: any[];
@@ -12,6 +13,7 @@ interface RecentNotificationsProps {
 export const RecentNotifications = ({ notifications, loading }: RecentNotificationsProps) => {
   const queryClient = useQueryClient();
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const handleRead = async (id: string, isRead: boolean) => {
     if (isRead) return;
@@ -22,8 +24,6 @@ export const RecentNotifications = ({ notifications, loading }: RecentNotificati
         if (!old) return old;
         return old.map((n: any) => n.id === id ? { ...n, isRead: true } : n);
       });
-      // Invalidate queries so Navbar and Dashboard counts sync up
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       
       await api.put(`/notifications/${id}/read`);
     } catch {
@@ -31,6 +31,29 @@ export const RecentNotifications = ({ notifications, loading }: RecentNotificati
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  const handleNotificationClick = async (n: any) => {
+    if (!n.isRead) {
+      await handleRead(n.id, n.isRead);
+    }
+    
+    const category = (n.category || '').toLowerCase();
+    const type = (n.type || '').toLowerCase();
+    
+    if (type === 'budget' || category === 'budget') {
+      navigate('/dashboard');
+    } else if (type === 'credit_card' || category === 'credit card' || category === 'creditcard') {
+      navigate('/credit-card');
+    } else if (type === 'goal' || category === 'goals') {
+      navigate('/goals');
+    } else if (type === 'statement' || n.title.toLowerCase().includes('statement')) {
+      navigate('/import');
+    } else if (type === 'debt' || category === 'debt') {
+      navigate('/debt');
+    } else {
+      navigate('/dashboard');
     }
   };
 
@@ -51,11 +74,11 @@ export const RecentNotifications = ({ notifications, loading }: RecentNotificati
           {notifications.slice(0, 3).map(n => (
             <div 
               key={n.id} 
-              onClick={() => handleRead(n.id, n.isRead)}
-              className={`p-3 rounded border transition-all duration-200 ${
+              onClick={() => handleNotificationClick(n)}
+              className={`p-3 rounded border transition-all duration-200 cursor-pointer ${
                 n.isRead 
-                  ? 'border-subtle bg-surface/30 opacity-70 cursor-default' 
-                  : 'border-blue/30 bg-surface/70 hover:border-blue/50 cursor-pointer shadow-sm'
+                  ? 'border-subtle bg-surface/30 opacity-70' 
+                  : 'border-blue/30 bg-surface/70 hover:border-blue/50 shadow-sm'
               }`}
             >
               <div className="flex items-center justify-between mb-1.5">

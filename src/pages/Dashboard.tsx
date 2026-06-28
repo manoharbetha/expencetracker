@@ -1,15 +1,15 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { TrendingUp, BarChart3 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { SpendingChart } from '../components/charts/SpendingChart';
-import { IncomeExpenseBar } from '../components/charts/IncomeExpenseBar';
+const SpendingChart = lazy(() => import('../components/charts/SpendingChart').then(m => ({ default: m.SpendingChart })));
+const IncomeExpenseBar = lazy(() => import('../components/charts/IncomeExpenseBar').then(m => ({ default: m.IncomeExpenseBar })));
 import { Skeleton } from '../components/ui/Skeleton';
 import { FinancialOverview } from '../components/dashboard/FinancialOverview';
 import { CreditCardWidget } from '../components/dashboard/CreditCardWidget';
 import { TransactionsAndCategories } from '../components/dashboard/TransactionsAndCategories';
 import { GoalProgress } from '../components/dashboard/GoalProgress';
-import { AIFinancialCoach } from '../components/dashboard/AIFinancialCoach';
+const AIFinancialCoach = lazy(() => import('../components/dashboard/AIFinancialCoach').then(m => ({ default: m.AIFinancialCoach })));
 import { FinancialHealthCard } from '../components/dashboard/FinancialHealthCard';
 import { PotentialSavingsCard } from '../components/dashboard/PotentialSavingsCard';
 import { RecentNotifications } from '../components/dashboard/RecentNotifications';
@@ -97,11 +97,11 @@ export const Dashboard = () => {
       <div className="grid gap-4 xl:grid-cols-2">
         <section className="glass rounded-card p-5">
           <h2 className="mb-3 font-bold flex items-center gap-2"><TrendingUp className="h-4 w-4 text-blue" /> Monthly Spending Trend</h2>
-          {loading ? <Skeleton className="h-52" /> : <SpendingChart data={chartData} />}
+          {loading ? <Skeleton className="h-52" /> : <Suspense fallback={<Skeleton className="h-52" />}><SpendingChart data={chartData} /></Suspense>}
         </section>
         <section className="glass rounded-card p-5">
           <h2 className="mb-3 font-bold flex items-center gap-2"><BarChart3 className="h-4 w-4 text-violet" /> Income vs Expenses</h2>
-          {loading ? <Skeleton className="h-52" /> : <IncomeExpenseBar data={chartData} />}
+          {loading ? <Skeleton className="h-52" /> : <Suspense fallback={<Skeleton className="h-52" />}><IncomeExpenseBar data={chartData} /></Suspense>}
         </section>
       </div>
 
@@ -119,11 +119,13 @@ export const Dashboard = () => {
                 Failed to load AI Coach insights.
               </div>
             }>
-              <AIFinancialCoach 
-                insights={aiData?.insights || []} 
-                onRefresh={handleAiRefresh} 
-                loading={aiLoading || refreshingAi} 
-              />
+              <Suspense fallback={<Skeleton className="h-64 rounded-card" />}>
+                <AIFinancialCoach 
+                  insights={aiData?.insights || []} 
+                  onRefresh={handleAiRefresh} 
+                  loading={aiLoading || refreshingAi} 
+                />
+              </Suspense>
             </ErrorBoundary>
           )}
         </div>

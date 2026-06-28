@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { CreditCard as CardIcon, Save, Plus, Landmark, Calendar, AlertCircle, Trash2 } from 'lucide-react';
 import { creditCardService, type CreditCardCreatePayload } from '../services/creditCardService';
@@ -9,27 +10,9 @@ import { formatCurrency, formatDate } from '../utils/formatters';
 import type { CreditCard } from '../types';
 
 export const CreditCardPage = () => {
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [cards, setCards] = useState<CreditCard[]>([]);
+  const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [cardToDelete, setCardToDelete] = useState<string | null>(null);
-  
-  const handleDeleteCard = async () => {
-    if (!cardToDelete) return;
-    setDeleting(true);
-    try {
-      await creditCardService.delete(cardToDelete);
-      toast.success('Credit Card deleted successfully');
-      setCardToDelete(null);
-      fetchCards();
-    } catch {
-      toast.error('Failed to delete credit card');
-    } finally {
-      setDeleting(false);
-    }
-  };
   
   const [form, setForm] = useState<any>({
     cardName: '',
@@ -37,24 +20,41 @@ export const CreditCardPage = () => {
     creditLimit: '',
   });
 
-  const fetchCards = async () => {
-    setLoading(true);
-    try {
-      const data = await creditCardService.list();
-      setCards(data || []);
-    } catch (e) {
-      console.error(e);
-      toast.error('Failed to load credit cards');
-    } finally {
-      setLoading(false);
-    }
+  const { data: cards = [], isLoading: loading } = useQuery({
+    queryKey: ['credit-cards'],
+    queryFn: creditCardService.list,
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => creditCardService.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['credit-cards'] });
+      toast.success('Credit Card deleted successfully');
+      setCardToDelete(null);
+    },
+    onError: () => toast.error('Failed to delete credit card')
+  });
+
+  const upsertMutation = useMutation({
+    mutationFn: (data: CreditCardCreatePayload) => creditCardService.upsert(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['credit-cards'] });
+      toast.success('Credit Card saved successfully');
+      setShowForm(false);
+      setForm({ cardName: '', bankName: '', creditLimit: '' });
+    },
+    onError: (err: any) => toast.error(err.response?.data?.detail || 'Failed to save configuration')
+  });
+
+  const saving = upsertMutation.isPending;
+  const deleting = deleteMutation.isPending;
+  
+  const handleDeleteCard = () => {
+    if (!cardToDelete) return;
+    deleteMutation.mutate(cardToDelete);
   };
-
-  useEffect(() => {
-    fetchCards();
-  }, []);
-
-  const handleSave = async (e: React.FormEvent) => {
+  
+  const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.cardName.trim()) {
       toast.error('Card Name is required');
@@ -68,19 +68,7 @@ export const CreditCardPage = () => {
       toast.error('Credit Limit must be greater than 0');
       return;
     }
-
-    setSaving(true);
-    try {
-      await creditCardService.upsert({ ...form, creditLimit: Number(form.creditLimit) });
-      toast.success('Credit Card saved successfully');
-      setShowForm(false);
-      setForm({ cardName: '', bankName: '', creditLimit: '' });
-      fetchCards();
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to save configuration');
-    } finally {
-      setSaving(false);
-    }
+    upsertMutation.mutate({ ...form, creditLimit: Number(form.creditLimit) });
   };
 
   if (loading && cards.length === 0) {

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { Plus, Search, Trash2, Pencil, CreditCard } from 'lucide-react';
 import { expenseService, type Expense, type ExpenseCreate } from '../services/expenseService';
@@ -22,13 +23,10 @@ const empty: ExpenseCreate = {
 };
 
 export const Expenses = () => {
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [cards, setCards] = useState<CreditCardType[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
   const [form, setForm] = useState<ExpenseCreate>(empty);
-  const [saving, setSaving] = useState(false);
   
   // Filters
   const [search, setSearch] = useState('');
@@ -36,9 +34,9 @@ export const Expenses = () => {
   const [methodFilter, setMethodFilter] = useState('');
   const [cardFilter, setCardFilter] = useState('');
 
-  const fetchAll = async () => {
-    setLoading(true);
-    try {
+  const { data: expensesData, isLoading: expensesLoading } = useQuery({
+    queryKey: ['expenses', { catFilter, search, methodFilter, cardFilter }],
+    queryFn: async () => {
       const resp = await expenseService.list({ category: catFilter || undefined, search: search || undefined, limit: 500 });
       let data = resp.items ?? [];
       
@@ -48,26 +46,45 @@ export const Expenses = () => {
       if (cardFilter && cardFilter !== 'All') {
         data = data.filter(e => e.creditCardId === cardFilter);
       }
-      
-      setExpenses(data);
-    } finally {
-      setLoading(false);
+      return data;
     }
-  };
+  });
 
-  const fetchCards = async () => {
-    try {
-      const data = await creditCardService.list();
-      setCards(data || []);
-    } catch (e) {
-      console.error(e);
+  const { data: cards = [] } = useQuery({
+    queryKey: ['credit-cards'],
+    queryFn: creditCardService.list,
+  });
+
+  const expenses = expensesData || [];
+  const loading = expensesLoading;
+
+  const createMutation = useMutation({
+    mutationFn: (newExpense: ExpenseCreate) => expenseService.create(newExpense),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      toast.success('Expense added');
+      setOpen(false);
     }
-  };
+  });
 
-  useEffect(() => { 
-    fetchAll(); 
-    fetchCards();
-  }, [catFilter, search, methodFilter, cardFilter]);
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string, data: ExpenseCreate }) => expenseService.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      toast.success('Expense updated');
+      setOpen(false);
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => expenseService.remove(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      toast.success('Expense deleted');
+    }
+  });
+
+  const saving = createMutation.isPending || updateMutation.isPending;
 
   const openAdd = () => { setEditing(null); setForm(empty); setOpen(true); };
   const openEdit = (e: Expense) => {
@@ -76,32 +93,21 @@ export const Expenses = () => {
     setOpen(true);
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!form.description || !form.amount || !form.date) {
       toast.error('Please fill all fields');
       return;
     }
-    setSaving(true);
-    try {
-      if (editing) {
-        await expenseService.update(editing.id, form);
-        toast.success('Expense updated');
-      } else {
-        await expenseService.create(form);
-        toast.success('Expense added');
-      }
-      setOpen(false);
-      fetchAll();
-    } finally {
-      setSaving(false);
+    if (editing) {
+      updateMutation.mutate({ id: editing.id, data: form });
+    } else {
+      createMutation.mutate(form);
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     if (!confirm('Delete this expense?')) return;
-    await expenseService.remove(id);
-    toast.success('Expense deleted');
-    fetchAll();
+    deleteMutation.mutate(id);
   };
 
   const totalShown = expenses.reduce((s, e) => s + e.amount, 0);

@@ -12,6 +12,18 @@ scheduler = AsyncIOScheduler()
 
 async def generate_daily_ai_insight(user_id: str, db):
     try:
+        # Check if user already got an AI insight in the last 24 hours
+        one_day_ago = datetime.now(timezone.utc) - timedelta(days=1)
+        last_ai_notif = await db.notifications.find_one(
+            {"userId": user_id, "type": "ai"},
+            sort=[("createdAt", -1)]
+        )
+        if last_ai_notif:
+            created_at = last_ai_notif.get("createdAt")
+            if created_at and created_at.replace(tzinfo=timezone.utc) > one_day_ago:
+                logger.info(f"AI insight already sent for user {user_id} in the last 24h. Skipping.")
+                return
+
         # Get recent data
         now = datetime.now(timezone.utc)
         start_date = (now - timedelta(days=7)).isoformat()
@@ -22,10 +34,15 @@ async def generate_daily_ai_insight(user_id: str, db):
         expense_summary = sum([float(e.get("amount", 0)) for e in expenses])
         
         prompt = f"""
-        Analyze this user's 7-day financial data and generate ONE short, personalized financial insight (max 2 sentences).
+        Analyze the user's spending data and generate a short, intelligent financial notification (1-2 sentences).
+        Examples of what you should generate:
+        - Your credit utilization increased from 45% to 82% (if credit utilization changed significantly).
+        - Dining expenses increased 30% compared to last month.
+        - You are likely to exceed your entertainment budget this month.
+        Keep it extremely concise, professional, and personalized to the user's actual spending data if provided.
+        
         Total spent this week: {expense_summary}
         Number of active goals: {len(goals)}
-        Make it sound like a friendly AI assistant.
         """
         
         s = get_settings()
@@ -42,72 +59,85 @@ async def generate_daily_ai_insight(user_id: str, db):
             max_tokens=100
         )
         insight = completion.choices[0].message.content.strip()
+        
+        # Check similarity with last insight to avoid duplicates
+        if last_ai_notif and last_ai_notif.get("message") == insight:
+            logger.info("AI insight matches last one. Blocking duplicate.")
+            return
+            
         await send_to_user(user_id, "🤖 Daily Financial Insight", insight, "ai")
     except Exception as e:
         logger.error(f"Failed to generate AI insight for {user_id}: {e}")
-
-async def check_budget_limit(user_id: str, monthly_income: float, db):
-    if monthly_income <= 0: return
-    
-    today = date.today()
-    start_of_month = today.replace(day=1).isoformat()
-    
-    expenses = await db.expenses.find({"user_id": user_id, "date": {"$gte": start_of_month}}).to_list(1000)
-    total_spent = sum([float(e.get("amount", 0)) for e in expenses])
-    
-    if total_spent >= monthly_income * 0.9:
-        pct = int((total_spent / monthly_income) * 100)
-        await send_to_user(user_id, "Budget Alert", f"⚠ You have utilized {pct}% of your monthly income (₹{total_spent}).", "budget")
 
 async def run_daily_jobs():
     logger.info("[Scheduler] Running daily jobs...")
     db = get_db()
     today = date.today()
     
-    # We need to iterate over all users to check budgets and generate AI insights
     users = await db.users.find({}).to_list(1000)
-    
     for u in users:
         uid = str(u["_id"])
         if "id" in u:
             uid = str(u["id"])
             
-        # Budget Check
-        await check_budget_limit(uid, float(u.get("monthlyIncome", 0)), db)
-        
-        # AI Insight
+        # Daily AI Insight
         await generate_daily_ai_insight(uid, db)
         
-    # EMI Reminders (due tomorrow)
-    tomorrow = today + timedelta(days=1)
-    debts = await db.debts.find({"dueDate": tomorrow.isoformat()}).to_list(1000)
+    # Debts / EMI due date reminders (7 days, 3 days, today)
+    debts = await db.debts.find({}).to_list(1000)
     for d in debts:
         uid = d["user_id"]
         title = d.get("title", "Debt")
         emi = d.get("emi", 0)
-        await send_to_user(uid, "EMI Reminder", f"Education/Loan EMI of ₹{emi} for '{title}' is due tomorrow.", "debt")
-        
-    # Goal Deadlines (due tomorrow)
-    goals = await db.goals.find({"deadline": tomorrow.isoformat()}).to_list(1000)
-    for g in goals:
-        uid = g["user_id"]
-        title = g.get("goalName", "Goal")
-        await send_to_user(uid, "Goal Deadline", f"Your goal '{title}' is due tomorrow!", "goal")
-
-    # Credit Card bill reminders (due in <= 5 days)
+        due_date_str = d.get("dueDate")
+        if not due_date_str:
+            continue
+        try:
+            due_date = date.fromisoformat(due_date_str)
+            days_left = (due_date - today).days
+            
+            if days_left in [0, 3, 7]:
+                if days_left == 0:
+                    t = "Payment Due Today"
+                    msg = f"Your EMI payment of ₹{emi} for '{title}' is due today!"
+                elif days_left == 3:
+                    t = "Payment Due in 3 Days"
+                    msg = f"Your EMI payment of ₹{emi} for '{title}' is due in 3 days."
+                else:
+                    t = "Payment Due in 7 Days"
+                    msg = f"Your EMI payment of ₹{emi} for '{title}' is due in 7 days."
+                    
+                await send_to_user(uid, t, msg, "debt", due_date=due_date_str)
+        except Exception as e:
+            logger.error(f"Failed to check debt payment: {e}")
+            
+    # Credit Card bill reminders (7 days, 3 days, today)
     cards_cursor = db.credit_cards.find({})
     async for card in cards_cursor:
         uid = card.get("user_id", card.get("userId"))
         if not uid:
             continue
-        pipeline = [
-            {"$match": {"user_id": uid, "paymentMethod": "Credit Card"}},
-            {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
-        ]
-        res_agg = await db.expenses.aggregate(pipeline).to_list(1)
-        current_usage = float(res_agg[0]["total"]) if res_agg else 0.0
+        card_id = str(card["_id"])
+        card_name = card.get("cardName", "Credit Card")
         
-        if current_usage > 0:
+        # 1. Fetch latest statement to get due_date
+        latest_stmt = await db.statement_history.find_one(
+            {"credit_card_id": card_id},
+            sort=[("importedAt", -1)]
+        )
+        
+        next_due = None
+        due_date_str = ""
+        
+        if latest_stmt and latest_stmt.get("due_date"):
+            due_date_str = latest_stmt["due_date"]
+            try:
+                next_due = date.fromisoformat(due_date_str)
+            except Exception:
+                pass
+                
+        if not next_due:
+            # Fallback to card's default dueDate (day of month)
             due_day = int(card.get("dueDate", 1))
             try:
                 due_this_month = today.replace(day=due_day)
@@ -124,19 +154,21 @@ async def run_daily_jobs():
                         next_due = date(today.year, today.month + 1, due_day)
                     except ValueError:
                         next_due = date(today.year, today.month + 1, 28)
+            due_date_str = next_due.isoformat()
             
-            days_left = (next_due - today).days
-            if 0 <= days_left <= 5:
-                # Prevent duplicate notification in the last 24h
-                from datetime import datetime, timezone, timedelta
-                one_day_ago = datetime.now(timezone.utc) - timedelta(days=1)
-                existing = await db.notifications.find_one({
-                    "userId": uid,
-                    "title": "Credit Card Reminder",
-                    "createdAt": {"$gte": one_day_ago}
-                })
-                if not existing:
-                    await send_to_user(uid, "Credit Card Reminder", f"Your credit card payment for '{card.get('cardName')}' is due soon (in {days_left} days).", "credit_card")
+        days_left = (next_due - today).days
+        if days_left in [0, 3, 7]:
+            if days_left == 0:
+                t = "Payment Due Today"
+                msg = f"Your credit card payment for '{card_name}' is due today!"
+            elif days_left == 3:
+                t = "Payment Due in 3 Days"
+                msg = f"Your credit card payment for '{card_name}' is due in 3 days."
+            else:
+                t = "Payment Due in 7 Days"
+                msg = f"Your credit card payment for '{card_name}' is due in 7 days."
+                
+            await send_to_user(uid, t, msg, "credit_card", due_date=due_date_str, credit_card_id=card_id)
 
     # Auto-cleanup read notifications older than 30 days
     thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
@@ -152,3 +184,4 @@ def start_scheduler():
 
 def stop_scheduler():
     scheduler.shutdown()
+

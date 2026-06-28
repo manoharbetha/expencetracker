@@ -4,6 +4,7 @@ from app.core.security import get_current_user
 from app.db.mongodb import get_db
 from app.schemas import CreditCardCreate
 from app.services.ai_financial_coach import invalidate_insights_cache
+from app.services.fcm_service import check_credit_card_utilization_notifications
 
 router = APIRouter()
 
@@ -80,6 +81,8 @@ async def upsert_credit_card(
         {"$set": doc, "$setOnInsert": {"createdAt": now}},
         upsert=True
     )
+    
+    await check_credit_card_utilization_notifications(u["id"], db)
     invalidate_insights_cache(u["id"])
     
     # Send notification if new card added

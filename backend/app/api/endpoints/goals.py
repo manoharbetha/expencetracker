@@ -7,7 +7,7 @@ from app.db.mongodb import get_db
 from app.db.crud import create_doc, list_docs, get_doc, update_doc, delete_doc
 from app.schemas import GoalCreate, GoalUpdate, MessageResponse
 from app.services import calculate_goal_metrics
-from app.services.fcm_service import send_to_user
+from app.services.fcm_service import send_to_user, check_goal_notifications
 from app.services.ai_financial_coach import invalidate_insights_cache
 
 router = APIRouter()
@@ -28,6 +28,9 @@ async def create_goal(
     g = await create_doc(get_db().goals, u["id"], goal_data.model_dump())
     if g.get("name"):
         await send_to_user(u["id"], "Goal Created", f"{g['name']} Goal Added", "goal")
+    
+    await check_goal_notifications(u["id"], str(g["_id"]), get_db())
+    
     invalidate_insights_cache(u["id"])
     return enrich_goal(g)
 
@@ -50,9 +53,7 @@ async def update_goal_by_id(
     old_g = await get_doc(get_db().goals, u["id"], goal_id)
     g = await update_doc(get_db().goals, u["id"], goal_id, goal_data.model_dump())
     
-    # Check if goal was just completed
-    if g.get("savedAmount", 0) >= g.get("targetAmount", 0) and old_g.get("savedAmount", 0) < old_g.get("targetAmount", 0):
-        await send_to_user(u["id"], "Goal Completed", "You achieved your goal", "goal")
+    await check_goal_notifications(u["id"], goal_id, db)
         
     invalidate_insights_cache(u["id"])
     return enrich_goal(g)

@@ -42,23 +42,17 @@ async def get_notifications(u: dict = Depends(get_current_user)):
     # Cleanup read notifications older than 30 days for this user
     thirty_days_ago = datetime.now(timezone.utc) - timedelta(days=30)
     await db.notifications.delete_many({
-        "$or": [{"userId": u["id"]}, {"user_id": u["id"]}],
-        "$or": [{"isRead": True}, {"read": True}],
-        "createdAt": {"$lt": thirty_days_ago}
+        "$and": [
+            {"$or": [{"userId": u["id"]}, {"user_id": u["id"]}]},
+            {"$or": [{"isRead": True}, {"read": True}]},
+            {"createdAt": {"$lt": thirty_days_ago}}
+        ]
     })
 
-    # Fetch user's notifications
-    docs = await db.notifications.find({"userId": u["id"]}).to_list(100)
-    old_docs = await db.notifications.find({"user_id": u["id"]}).to_list(100)
-    
-    all_docs = docs + old_docs
-    seen = set()
-    deduped_docs = []
-    for d in all_docs:
-        d_id = str(d["_id"])
-        if d_id not in seen:
-            seen.add(d_id)
-            deduped_docs.append(d)
+    # Fetch user's notifications matching userId or user_id
+    deduped_docs = await db.notifications.find({
+        "$or": [{"userId": u["id"]}, {"user_id": u["id"]}]
+    }).to_list(200)
 
     # Sort notifications:
     # 1. Newest first

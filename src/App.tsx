@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useLocation, useRoutes } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
@@ -18,6 +19,18 @@ const queryClient = new QueryClient({
 export default function App() {
   const location = useLocation();
   const element = useRoutes(routes, location);
+
+  useEffect(() => {
+    const handleMutation = () => {
+      // Invalidate all queries to ensure data stays perfectly synchronized across components
+      queryClient.invalidateQueries();
+    };
+    window.addEventListener('data-mutated', handleMutation);
+    return () => {
+      window.removeEventListener('data-mutated', handleMutation);
+    };
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary fallback={

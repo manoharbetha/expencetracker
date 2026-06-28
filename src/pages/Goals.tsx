@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { Plus, Trash2, Pencil, Target } from 'lucide-react';
 import { goalService, type Goal, type GoalCreate } from '../services/goalService';
@@ -12,19 +13,43 @@ import { ProgressBar } from '../components/ui/ProgressBar';
 const empty: GoalCreate = { goalName: '', targetAmount: 0, savedAmount: 0, deadline: '' };
 
 export const Goals = () => {
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Goal | null>(null);
   const [form, setForm] = useState<GoalCreate>(empty);
-  const [saving, setSaving] = useState(false);
 
-  const fetchAll = async () => {
-    setLoading(true);
-    try { setGoals(await goalService.list()); } finally { setLoading(false); }
-  };
+  const { data: goals = [], isLoading: loading } = useQuery({
+    queryKey: ['goals'],
+    queryFn: goalService.list,
+  });
 
-  useEffect(() => { fetchAll(); }, []);
+  const createMutation = useMutation({
+    mutationFn: (newGoal: GoalCreate) => goalService.create(newGoal),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      toast.success('Goal created!');
+      setOpen(false);
+    }
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string, data: GoalCreate }) => goalService.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      toast.success('Goal updated');
+      setOpen(false);
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => goalService.remove(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      toast.success('Goal deleted');
+    }
+  });
+
+  const saving = createMutation.isPending || updateMutation.isPending;
 
   const openAdd = () => { setEditing(null); setForm(empty); setOpen(true); };
   const openEdit = (g: Goal) => {
@@ -33,21 +58,18 @@ export const Goals = () => {
     setOpen(true);
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!form.goalName || !form.targetAmount || !form.deadline) { toast.error('Fill all fields'); return; }
-    setSaving(true);
-    try {
-      if (editing) { await goalService.update(editing.id, form); toast.success('Goal updated'); }
-      else { await goalService.create(form); toast.success('Goal created!'); }
-      setOpen(false); fetchAll();
-    } finally { setSaving(false); }
+    if (editing) {
+      updateMutation.mutate({ id: editing.id, data: form });
+    } else {
+      createMutation.mutate(form);
+    }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
     if (!confirm('Delete this goal?')) return;
-    await goalService.remove(id);
-    toast.success('Goal deleted');
-    fetchAll();
+    deleteMutation.mutate(id);
   };
 
   return (

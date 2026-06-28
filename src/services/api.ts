@@ -22,9 +22,16 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 globally
+// Handle 401 globally and dispatch notification and data mutation updates
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    const method = res.config?.method?.toUpperCase();
+    if (method && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+      window.dispatchEvent(new Event('notification-updated'));
+      window.dispatchEvent(new Event('data-mutated'));
+    }
+    return res;
+  },
   (err) => {
     if (err.response?.status === 401) {
       const publicPaths = ['/login', '/register', '/'];
