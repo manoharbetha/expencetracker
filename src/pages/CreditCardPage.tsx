@@ -8,6 +8,7 @@ import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import type { CreditCard } from '../types';
+import { trackEvent } from '../utils/analytics';
 
 export const CreditCardPage = () => {
   const queryClient = useQueryClient();
@@ -27,8 +28,10 @@ export const CreditCardPage = () => {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => creditCardService.delete(id),
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ['credit-cards'] });
+      // Track credit card deleted (only card ID, no user identifier)
+      trackEvent('credit_card_deleted', { card_id: id });
       toast.success('Credit Card deleted successfully');
       setCardToDelete(null);
     },
@@ -37,8 +40,10 @@ export const CreditCardPage = () => {
 
   const upsertMutation = useMutation({
     mutationFn: (data: CreditCardCreatePayload) => creditCardService.upsert(data),
-    onSuccess: () => {
+    onSuccess: (newCard) => {
       queryClient.invalidateQueries({ queryKey: ['credit-cards'] });
+      // Track credit card added (limit and bank name, no cardName or user info)
+      trackEvent('credit_card_added', { credit_limit: newCard.creditLimit, bank_name: newCard.bankName });
       toast.success('Credit Card saved successfully');
       setShowForm(false);
       setForm({ cardName: '', bankName: '', creditLimit: '' });

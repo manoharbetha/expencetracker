@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, lazy, Suspense, useEffect } from 'react';
 import { TrendingUp, BarChart3 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -21,6 +21,7 @@ import { goalService } from '../services/goalService';
 import { notificationService } from '../services/notificationService';
 import { aiService } from '../services/aiService';
 import { useAuth } from '../context/AuthContext';
+import { trackEvent } from '../utils/analytics';
 
 export const Dashboard = () => {
   const { user } = useAuth();
@@ -32,6 +33,13 @@ export const Dashboard = () => {
     queryKey: ['dashboard'],
     queryFn: analyticsService.getDashboard,
   });
+
+  // Track dashboard viewed event upon successful API response
+  useEffect(() => {
+    if (dash) {
+      trackEvent('dashboard_viewed');
+    }
+  }, [!!dash]);
 
   const { data: expensesData, isLoading: expensesLoading } = useQuery({
     queryKey: ['recentExpenses'],
@@ -54,6 +62,13 @@ export const Dashboard = () => {
     queryFn: () => aiService.dashboardInsights(false),
     staleTime: 1000 * 60 * 15, // AI coach insights change less frequently
   });
+
+  // Track AI insights generation event (without any PII content)
+  useEffect(() => {
+    if (aiData && !aiData.error) {
+      trackEvent('ai_insights_generated', { insight_count: aiData.insights?.length || 0 });
+    }
+  }, [aiData]);
 
   const loading = dashLoading || expensesLoading || goalsLoading || notificationsLoading;
 

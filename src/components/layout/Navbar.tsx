@@ -9,6 +9,7 @@ import { Avatar } from '../ui/Avatar';
 import api from '../../services/api';
 import { formatCurrency } from '../../utils/formatters';
 import { useAuth } from '../../context/AuthContext';
+import { trackEvent } from '../../utils/analytics';
 
 export const Navbar = () => {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -107,7 +108,7 @@ export const Navbar = () => {
               <Settings className="h-4 w-4" /> Settings
             </button>
             <button 
-              onClick={() => { setDropdownOpen(false); logout(); }}
+              onClick={() => { setDropdownOpen(false); trackEvent('logout'); logout(); }}
               className="w-full flex items-center gap-2 rounded px-3 py-2 text-sm font-semibold text-rose hover:bg-rose/10 transition mt-1"
             >
               <LogOut className="h-4 w-4" /> Sign Out

@@ -11,6 +11,7 @@ import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { Skeleton } from '../components/ui/Skeleton';
 import type { CreditCard as CreditCardType } from '../types';
+import { trackEvent } from '../utils/analytics';
 
 const CATEGORIES = ['Food', 'Travel', 'Shopping', 'Bills', 'Education', 'Entertainment'];
 const METHODS = ['Bank', 'UPI', 'Cash', 'Credit Card'];
@@ -62,6 +63,8 @@ export const Expenses = () => {
     mutationFn: (newExpense: ExpenseCreate) => expenseService.create(newExpense),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      // Track expense created (contains category/amount, strictly no PII description)
+      trackEvent('expense_created', { category: form.category, amount: form.amount });
       toast.success('Expense added');
       setOpen(false);
     }
@@ -71,6 +74,8 @@ export const Expenses = () => {
     mutationFn: ({ id, data }: { id: string, data: ExpenseCreate }) => expenseService.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      // Track expense updated (contains category/amount, strictly no PII description)
+      trackEvent('expense_updated', { category: form.category, amount: form.amount });
       toast.success('Expense updated');
       setOpen(false);
     }
@@ -78,8 +83,10 @@ export const Expenses = () => {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => expenseService.remove(id),
-    onSuccess: () => {
+    onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      // Track expense deleted
+      trackEvent('expense_deleted', { expense_id: id });
       toast.success('Expense deleted');
     }
   });

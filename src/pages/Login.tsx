@@ -5,6 +5,7 @@ import { AuthLayout } from '../layouts/AuthLayout';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
+import { trackEvent } from '../utils/analytics';
 
 export const Login = () => {
   const { login, isLoading } = useAuth();
@@ -28,6 +29,8 @@ export const Login = () => {
     if (!validate()) return;
     try {
       await login(email, password);
+      // Track successful login (strictly no PII)
+      trackEvent('login_success');
       navigate('/dashboard');
     } catch {
       // error toast handled by axios interceptor

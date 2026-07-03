@@ -3,6 +3,7 @@ import { X, Trash2, Bell, DollarSign, CreditCard, TrendingUp, Target, Brain, Set
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import { trackEvent } from '../../utils/analytics';
 
 interface Notification {
   id: string;
@@ -62,6 +63,14 @@ export const NotificationDrawer = ({ isOpen, onClose, unreadCount, setUnreadCoun
   };
 
   const handleNotificationClick = async (n: Notification) => {
+    // Track notification opened event (only metadata, strictly no PII message/title)
+    trackEvent('notification_opened', {
+      notification_id: n.id,
+      category: n.category,
+      type: n.type,
+      priority: n.priority
+    });
+
     if (!n.isRead) {
       await markAsRead(n.id);
     }

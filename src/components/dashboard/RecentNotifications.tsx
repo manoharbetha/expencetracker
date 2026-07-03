@@ -4,6 +4,7 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { useNavigate } from 'react-router-dom';
+import { trackEvent } from '../../utils/analytics';
 
 interface RecentNotificationsProps {
   notifications: any[];
@@ -35,6 +36,14 @@ export const RecentNotifications = ({ notifications, loading }: RecentNotificati
   };
 
   const handleNotificationClick = async (n: any) => {
+    // Track notification opened event (only metadata, strictly no PII message/title)
+    trackEvent('notification_opened', {
+      notification_id: n.id,
+      category: n.category,
+      type: n.type,
+      priority: n.priority
+    });
+
     if (!n.isRead) {
       await handleRead(n.id, n.isRead);
     }

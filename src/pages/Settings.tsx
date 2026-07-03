@@ -10,6 +10,7 @@ import { authService } from '../services/authService';
 import { settingsService } from '../services/settingsService';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { trackEvent } from '../utils/analytics';
 
 export const Settings = () => {
   const { theme, setTheme } = useTheme();
@@ -29,6 +30,10 @@ export const Settings = () => {
         name,
         monthlyIncome: Number(monthlyIncome)
       });
+      
+      // Track income setup/update event (without user details)
+      trackEvent('income_created', { amount: Number(monthlyIncome) });
+
       updateUser(updatedUser);
       toast.success('Settings saved successfully!');
     } catch {

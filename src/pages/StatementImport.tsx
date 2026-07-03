@@ -8,6 +8,7 @@ import { statementService } from '../services/statementService';
 import { creditCardService } from '../services/creditCardService';
 import { formatCurrency } from '../utils/formatters';
 import type { CreditCard } from '../types';
+import { trackEvent } from '../utils/analytics';
 
 interface ExtractedTxn {
   date: string;
@@ -52,15 +53,26 @@ export const StatementImport = () => {
     const formData = new FormData();
     formData.append('file', file);
     
+    // Track statement import started event (strictly no PII)
+    trackEvent('statement_import_started', { file_size: file.size });
+
     try {
       const data = await statementService.upload(formData, (progressEvent: any) => {
         if (progressEvent.total) setProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total));
       });
       
       if (data.items.length === 0) {
+        // Track statement import failure due to empty transactions parsed
+        trackEvent('statement_import_failed', { reason: 'No items parsed' });
         toast.error(data.message + " (Check console for detailed debug report)");
         setFile(null);
       } else {
+        // Track statement import success (contains metadata only)
+        trackEvent('statement_import_success', {
+          statement_type: data.statement_type || 'bank',
+          item_count: data.items.length
+        });
+        
         setTransactions(data.items);
         setStatementType(data.statement_type || 'bank');
         setCcDetails(data.cc_details || {});
@@ -85,7 +97,10 @@ export const StatementImport = () => {
         toast.success(data.message);
       }
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || 'Failed to upload statement');
+      const errorMsg = err.response?.data?.detail || 'Failed to upload statement';
+      // Track statement import failure due to API or Network issues
+      trackEvent('statement_import_failed', { reason: errorMsg });
+      toast.error(errorMsg);
     } finally {
       setUploading(false);
     }

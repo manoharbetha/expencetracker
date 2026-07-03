@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { routes } from './routes';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
+import { initGA, trackPageView } from './utils/analytics';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -19,6 +20,16 @@ const queryClient = new QueryClient({
 export default function App() {
   const location = useLocation();
   const element = useRoutes(routes, location);
+
+  // Initialize GA4 once when the application starts
+  useEffect(() => {
+    initGA();
+  }, []);
+
+  // Automatically track page views using React Router location
+  useEffect(() => {
+    trackPageView(location.pathname);
+  }, [location.pathname]);
 
   useEffect(() => {
     const handleMutation = () => {

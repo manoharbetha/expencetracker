@@ -5,6 +5,7 @@ import { AuthLayout } from '../layouts/AuthLayout';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
+import { trackEvent } from '../utils/analytics';
 
 const strength = (pw: string) => {
   let s = 0;
@@ -50,6 +51,8 @@ export const Register = () => {
     if (!validate()) return;
     try {
       await register(name.trim(), email, password, Number(monthlyIncome));
+      // Track successful registration (strictly no PII)
+      trackEvent('register_success');
       navigate('/dashboard');
     } catch {
       // error toast handled by axios interceptor
