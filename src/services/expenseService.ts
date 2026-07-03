@@ -1,32 +1,5 @@
 import api from './api';
-
-export interface Expense {
-  id: string;
-  amount: number;
-  category: 'Food' | 'Travel' | 'Shopping' | 'Bills' | 'Education' | 'Entertainment' | 'Health' | 'Other';
-  description: string;
-  paymentMethod: 'UPI' | 'Credit Card' | 'Cash' | 'Debit Card' | 'Net Banking';
-  creditCardId?: string;
-  date: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface ExpenseCreate {
-  amount: number;
-  category: string;
-  description: string;
-  paymentMethod: string;
-  creditCardId?: string;
-  date: string;
-}
-
-export interface ExpenseListResponse {
-  items: Expense[];
-  total: number;
-  skip: number;
-  limit: number;
-}
+import { Expense, ExpenseCreate, ExpenseListResponse } from '../types';
 
 export const expenseService = {
   async list(params?: {

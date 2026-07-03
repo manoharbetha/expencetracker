@@ -1,145 +1,102 @@
-# AI Finance Manager
+# Fintell — AI-Powered Financial Intelligence Cockpit
 
-A personal finance dashboard that tracks expenses, manages goals, and provides data-driven financial insights.
+Fintell is a production-ready, AI-driven personal finance application that helps users track expenses, manage credit card debt, auto-ingest transactions from PDF statements, and receive intelligent financial warnings and coaching. 
 
-## About the Project
+---
 
-AI Finance Manager is a web application designed to help users track their income, expenses, and financial goals in one centralized dashboard. It solves the problem of manual expense tracking by providing automated categorizations, credit card utilization monitoring, and AI-driven spending insights. This application is intended for students, young professionals, and anyone looking for a clear overview of their personal finances.
+## 🚀 Key Features
 
-Developed during the Full Stack Development Internship at Symbiosis Technologies.
+- **📊 Interactive Dashboard:** A central financial command center containing dynamic income vs. expense bars, monthly spending trends, active goal progress gauges, and notification centers.
+- **📄 Automated Statement Import:** Seamless PDF parser that reads bank and credit card statement transactions and imports them, with intelligent transaction conflict resolution (replace vs. append).
+- **💳 Credit Card Outstanding Debt Ledger:** Monitor card outstanding details, available limits, statement dates, and warning cycles when credit utilization spikes.
+- **🤖 AI Financial Coach:** Runs real-time diagnostic checks on user income, expense patterns, and goals to provide personalized savings advice and compute a unified financial health score.
+- **🔔 Notification Alerts:** Integrated notifications that alert you when statements finish parsing, card payment dates approach, or limits are crossed.
+- **🌐 Google Analytics 4 (GA4):** Complete user-journey tracking with path sanitization, environment flag fallbacks, and strict PII exclusion blocks.
 
-## Features
+---
 
-- **Dashboard Analytics**: View monthly income, total expenses, net savings, and active goals.
-- **AI Financial Insights**: Receive automated recommendations and a financial health score based on spending patterns.
-- **Credit Card Tracking**: Track credit utilization and view billing cycle due dates.
-- **Statement Import**: Upload bank statements to categorize and track transactions automatically.
-- **Goal Tracking**: Create financial goals and monitor progress over time.
-- **Financial Notepad**: Log quick notes, wishlist items, or pending purchases.
-- **Authentication**: Secure user login and registration.
+## 🛠 Tech Stack
 
-## Screenshots
+- **Frontend:** React 18, TypeScript, TailwindCSS, TanStack Query, React Router v6, Recharts.
+- **Build Tooling:** Vite 6, PostCSS, Progressive Web App caching (`vite-plugin-pwa`).
+- **Backend Connector:** REST API communication via Axios client with request/response authorization token interceptors.
+- **Backend (Python):** FastAPI, MongoDB document store, PyDantic validation models, PDF extraction engines.
 
-* [Dashboard Placeholder]
-* [Expenses Placeholder]
-* [Goals Placeholder]
-* [Credit Card Placeholder]
-* [AI Insights Placeholder]
-* [Statement Import Placeholder]
+---
 
-## Tech Stack
-
-**Frontend**
-- React
-- TypeScript
-- Vite
-- Tailwind CSS
-
-**Backend**
-- FastAPI
-- Python
-
-**Database**
-- MongoDB
-
-## Project Architecture
-
-The application is built using a standard client-server architecture:
-- **React Frontend**: A single-page application handling the user interface and state management.
-- **FastAPI Backend**: A RESTful API handling business logic, authentication, and AI service integration.
-- **MongoDB Database**: A NoSQL database storing user accounts, transactions, and goals.
-
-## Folder Structure
+## 📂 Folder Structure
 
 ```
-expencetracker/
-├── backend/            
-│   ├── app/
-│   │   ├── api/        
-│   │   ├── core/       
-│   │   ├── models/     
-│   │   └── services/   
-│   └── requirements.txt
-└── src/                
-    ├── components/     
-    ├── context/        
-    ├── pages/          
-    ├── services/       
-    ├── types/          
-    └── utils/          
+src/
+ ├─ api/         # Global API Client & interceptor setups
+ ├─ components/  # Chart engines & Dashboard bento cards
+ ├─ context/     # Global state (Session, JWT validation)
+ ├─ hooks/       # Custom React Hooks
+ ├─ layouts/     # Routing wireframes & layouts
+ ├─ pages/       # Router page components
+ ├─ routes/      # Declarative routes & protected layout guards
+ ├─ services/    # REST API services
+ ├─ types/       # Consolidated TypeScript declarations
+ ├─ utils/       # Formatter scripts & GA4 wrapper
+ └─ main.tsx     # React bootstrapper
 ```
 
-## Team
+For a comprehensive guide to Fintell's directories and import relationships, review the [PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) documentation.
 
-Developed during the Full Stack Development Internship at Symbiosis Technologies.
+---
 
-### Team Members
-- Manohar Betha
-- Chandu
-- Amrutha
-- Pardhu
-- Sonu
+## 📦 Installation & Setup
 
-## Installation
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/manoharbetha/expencetracker.git
+   cd expencetracker
+   ```
 
-### Prerequisites
-- Node.js (v16+)
-- Python (3.8+)
-- MongoDB Atlas account (or local MongoDB instance)
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-### 1. Clone the repository
-```bash
-git clone https://github.com/manoharbetha/expencetracker.git
-cd expencetracker
-```
+3. **Configure Environment Variables:**
+   Create a `.env` file in the root directory:
+   ```env
+   VITE_API_URL=http://localhost:8000
+   VITE_GA_MEASUREMENT_ID=G-EB04P029LF
+   ```
 
-### 2. Backend Setup
-Navigate to the backend directory, create a virtual environment, and install the dependencies:
-```bash
-cd backend
-python -m venv venv
+4. **Launch development server:**
+   ```bash
+   npm run dev
+   ```
 
-# On Windows:
-venv\Scripts\activate
-# On Mac/Linux:
-source venv/bin/activate
+5. **Build for production:**
+   ```bash
+   npm run build
+   ```
 
-pip install -r requirements.txt
-```
-Start the FastAPI backend server:
-```bash
-uvicorn app.main:app --reload
-```
+---
 
-### 3. Frontend Setup
-Open a new terminal window, navigate to the project root, and install the frontend dependencies:
-```bash
-npm install
-```
-Start the React development server:
-```bash
-npm run dev
-```
+## 🛡 Security & Privacy
 
-## Environment Variables
+Fintell enforces industry-standard user privacy and security protocols:
+- **Authorization:** Sessions are authorized via Bearer JWT tokens attached to outgoing Axios calls.
+- **Route Protection:** Layout wrappers block unauthenticated users from page endpoints.
+- **PII Sanitation:** GA4 logging helper blocks names, emails, and passwords from telemetry data. Path analytics strip queries to prevent parameter leakage.
 
-You will need to create environment configuration files to run the application locally.
+Review the [SECURITY.md](docs/SECURITY.md) guidelines for full details.
 
-**Frontend** (`.env` in the root directory):
-```env
-VITE_API_URL=http://localhost:8000
-```
+---
 
-**Backend** (`.env` in the `backend` directory):
-```env
-MONGODB_URI=<your-mongodb-connection-string>
-JWT_SECRET=<your-jwt-secret-key>
-AI_API_KEY=<your-ai-service-api-key>
-```
+## 📖 Project Documentation
 
-## Future Improvements
+Detailed architecture maps, design tradeoffs, and code walkthroughs are available inside the `/docs` folder:
+- **[README_PROJECT.md](docs/README_PROJECT.md):** High-level business purpose and tech stack specs.
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md):** 17 ASCII system data-flow diagrams.
+- **[INTERVIEW_PREP.md](docs/INTERVIEW_PREP.md):** Detailed interview preparation guide containing common interview questions and expert answers.
+- **[CODE_TOUR.md](docs/CODE_TOUR.md):** Step-by-step walkthrough detailing how to read this codebase.
 
-- Support for managing multiple credit cards simultaneously.
-- Implementation of OCR (Optical Character Recognition) to parse physical receipts.
-- Development of a companion mobile application.
-- Advanced forecasting for long-term financial planning.
+---
+
+## 📄 License
+This project is open-source and licensed under the MIT License.

@@ -1,23 +1,5 @@
 import api from './api';
-
-export interface Debt {
-  id: string;
-  title: string;
-  amount: number;
-  interestRate: number;
-  emi: number;
-  dueDate: string;
-  type?: 'borrowed' | 'lent';
-}
-
-export interface DebtCreate {
-  title: string;
-  amount: number;
-  interestRate: number;
-  emi: number;
-  dueDate: string;
-  type?: 'borrowed' | 'lent';
-}
+import { Debt, DebtCreate } from '../types';
 
 export const debtService = {
   async list(): Promise<Debt[]> {

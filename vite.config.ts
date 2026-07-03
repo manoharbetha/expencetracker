@@ -25,14 +25,10 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: (id) => {
-          if (id.includes('three') || id.includes('@react-three'))
-            return 'chunk-three';
-          if (id.includes('framer-motion') || id.includes('gsap') || id.includes('lenis'))
+          if (id.includes('framer-motion'))
             return 'chunk-motion';
           if (id.includes('recharts') || id.includes('d3'))
             return 'chunk-charts';
-          if (id.includes('firebase'))
-            return 'chunk-firebase';
           if (id.includes('node_modules'))
             return 'chunk-vendor';
         },

@@ -4,17 +4,7 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { trackEvent } from '../../utils/analytics';
-
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  type: string;
-  category: string;
-  priority: string;
-  isRead: boolean;
-  createdAt: string;
-}
+import { Notification } from '../../types';
 
 interface Props {
   isOpen: boolean;

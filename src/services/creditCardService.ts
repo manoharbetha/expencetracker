@@ -1,11 +1,5 @@
 import api from './api';
-import type { CreditCard } from '../types';
-
-export interface CreditCardCreatePayload {
-  cardName: string;
-  bankName: string;
-  creditLimit: number;
-}
+import { CreditCard, CreditCardCreatePayload } from '../types';
 
 export const creditCardService = {
   async list(): Promise<CreditCard[]> {

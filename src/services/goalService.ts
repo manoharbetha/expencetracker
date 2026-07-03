@@ -1,22 +1,5 @@
 import api from './api';
-
-export interface Goal {
-  id: string;
-  goalName: string;
-  targetAmount: number;
-  savedAmount: number;
-  deadline: string;
-  progressPercentage: number;
-  remainingAmount: number;
-  monthlySavingsNeeded: number;
-}
-
-export interface GoalCreate {
-  goalName: string;
-  targetAmount: number;
-  savedAmount?: number;
-  deadline: string;
-}
+import { Goal, GoalCreate } from '../types';
 
 export const goalService = {
   async list(): Promise<Goal[]> {

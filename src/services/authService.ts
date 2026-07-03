@@ -1,20 +1,5 @@
 import api from './api';
-
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  monthlyIncome: number;
-  currency: string;
-  country: string;
-  createdAt?: string;
-}
-
-export interface TokenResponse {
-  access_token: string;
-  token_type: string;
-  user: User;
-}
+import { User, TokenResponse } from '../types';
 
 export const authService = {
   async register(name: string, email: string, password: string, monthlyIncome: number): Promise<TokenResponse> {
