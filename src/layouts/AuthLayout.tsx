@@ -1,5 +1,7 @@
 import { ReactNode } from 'react';
-import { Wallet } from 'lucide-react';
+import { Wallet, ArrowLeft } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 
 export const AuthLayout = ({ children }: { children: ReactNode }) => (
   <div className="relative min-h-screen bg-[#050816] flex flex-col items-center justify-center p-4 overflow-hidden">
@@ -11,7 +13,12 @@ export const AuthLayout = ({ children }: { children: ReactNode }) => (
     </div>
 
 
-    <div className="relative w-full max-w-md z-10 animate-auth-fade">
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.95, y: 20 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+      className="relative w-full max-w-md z-10"
+    >
       {/* 21st dev style border trail effect */}
       <div className="absolute -inset-[1px] bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500 rounded-modal opacity-30 blur-sm" />
       
@@ -27,6 +34,6 @@ export const AuthLayout = ({ children }: { children: ReactNode }) => (
         
         {children}
       </div>
-    </div>
+    </motion.div>
   </div>
 );

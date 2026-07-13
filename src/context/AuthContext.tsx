@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useState, useMemo } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { authService } from '../services/authService';
 import { User } from '../types';
@@ -85,18 +85,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(u);
   }, []);
 
-  const contextValue = useMemo(() => ({
-    user,
-    isAuthenticated: !!user,
-    isLoading,
-    login,
-    register,
-    logout,
-    updateUser
-  }), [user, isLoading, login, register, logout, updateUser]);
-
   return (
-    <AuthContext.Provider value={contextValue}>
+    <AuthContext.Provider
+      value={{ user, isAuthenticated: !!user, isLoading, login, register, logout, updateUser }}
+    >
       {children}
     </AuthContext.Provider>
   );

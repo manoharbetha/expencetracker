@@ -29,7 +29,11 @@ const ProtectedLayout = () => {
   const { isAuthenticated, isLoading } = useAuth();
   if (isLoading) return <SuspenseLoader />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  return <AppLayout />;
+  return (
+    <Suspense fallback={<SuspenseLoader />}>
+      <AppLayout />
+    </Suspense>
+  );
 };
 
 const LazyRoute = ({ children }: { children: React.ReactNode }) => (

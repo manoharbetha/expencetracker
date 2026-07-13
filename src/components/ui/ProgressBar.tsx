@@ -1,3 +1,5 @@
+import { motion } from 'framer-motion';
+
 const TONE_MAP: Record<string, string> = {
   blue: 'bg-blue',
   emerald: 'bg-emerald',
@@ -16,9 +18,11 @@ export const ProgressBar = ({
   tone?: string;
 }) => (
   <div className="h-2 overflow-hidden rounded-full bg-hover">
-    <div
-      className={`h-full rounded-full animate-progress transition-[width] duration-500 ease-out ${color ?? TONE_MAP[tone] ?? 'bg-blue'}`}
-      style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+    <motion.div
+      className={`h-full rounded-full ${color ?? TONE_MAP[tone] ?? 'bg-blue'}`}
+      initial={{ width: 0 }}
+      animate={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+      transition={{ duration: 0.8, ease: 'easeOut' }}
     />
   </div>
 );
