@@ -2,18 +2,22 @@ import { useState, lazy, Suspense, useEffect } from 'react';
 import { TrendingUp, BarChart3 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import { Skeleton } from '../components/ui/Skeleton';
+import { ErrorBoundary } from '../components/ui/ErrorBoundary';
+
+// Static import for top-of-the-fold summary card (optimal FCP/LCP)
+import { FinancialOverview } from '../components/dashboard/FinancialOverview';
+
+// Lazy load below-the-fold components
 const SpendingChart = lazy(() => import('../components/charts/SpendingChart').then(m => ({ default: m.SpendingChart })));
 const IncomeExpenseBar = lazy(() => import('../components/charts/IncomeExpenseBar').then(m => ({ default: m.IncomeExpenseBar })));
-import { Skeleton } from '../components/ui/Skeleton';
-import { FinancialOverview } from '../components/dashboard/FinancialOverview';
-import { CreditCardWidget } from '../components/dashboard/CreditCardWidget';
-import { TransactionsAndCategories } from '../components/dashboard/TransactionsAndCategories';
-import { GoalProgress } from '../components/dashboard/GoalProgress';
+const CreditCardWidget = lazy(() => import('../components/dashboard/CreditCardWidget').then(m => ({ default: m.CreditCardWidget })));
+const TransactionsAndCategories = lazy(() => import('../components/dashboard/TransactionsAndCategories').then(m => ({ default: m.TransactionsAndCategories })));
+const GoalProgress = lazy(() => import('../components/dashboard/GoalProgress').then(m => ({ default: m.GoalProgress })));
 const AIFinancialCoach = lazy(() => import('../components/dashboard/AIFinancialCoach').then(m => ({ default: m.AIFinancialCoach })));
-import { FinancialHealthCard } from '../components/dashboard/FinancialHealthCard';
-import { PotentialSavingsCard } from '../components/dashboard/PotentialSavingsCard';
-import { RecentNotifications } from '../components/dashboard/RecentNotifications';
-import { ErrorBoundary } from '../components/ui/ErrorBoundary';
+const FinancialHealthCard = lazy(() => import('../components/dashboard/FinancialHealthCard').then(m => ({ default: m.FinancialHealthCard })));
+const PotentialSavingsCard = lazy(() => import('../components/dashboard/PotentialSavingsCard').then(m => ({ default: m.PotentialSavingsCard })));
+const RecentNotifications = lazy(() => import('../components/dashboard/RecentNotifications').then(m => ({ default: m.RecentNotifications })));
 
 import { analyticsService } from '../services/analyticsService';
 import { DashboardData } from '../types';
@@ -108,7 +112,9 @@ export const Dashboard = () => {
 
       <FinancialOverview dash={dash ?? null} loading={loading} />
 
-      <CreditCardWidget dash={dash ?? null} loading={loading} />
+      <Suspense fallback={<Skeleton className="h-28 rounded-card animate-pulse" />}>
+        <CreditCardWidget dash={dash ?? null} loading={loading} />
+      </Suspense>
 
       <div className="grid gap-4 xl:grid-cols-2">
         <section className="glass rounded-card p-5">
@@ -121,9 +127,13 @@ export const Dashboard = () => {
         </section>
       </div>
 
-      <TransactionsAndCategories expenses={expenses} dash={dash ?? null} loading={loading} />
+      <Suspense fallback={<Skeleton className="h-64 rounded-card animate-pulse" />}>
+        <TransactionsAndCategories expenses={expenses} dash={dash ?? null} loading={loading} />
+      </Suspense>
 
-      <GoalProgress goals={goals} loading={loading} />
+      <Suspense fallback={<Skeleton className="h-32 rounded-card animate-pulse" />}>
+        <GoalProgress goals={goals} loading={loading} />
+      </Suspense>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <div className="xl:col-span-1 md:col-span-2">
@@ -149,19 +159,25 @@ export const Dashboard = () => {
           {aiLoading && !aiData ? (
             <Skeleton className="h-64 rounded-card" />
           ) : (
-            <FinancialHealthCard health={aiData?.financialHealthScore} />
+            <Suspense fallback={<Skeleton className="h-64 rounded-card animate-pulse" />}>
+              <FinancialHealthCard health={aiData?.financialHealthScore} />
+            </Suspense>
           )}
         </div>
         <div className="xl:col-span-1">
           {aiLoading && !aiData ? (
             <Skeleton className="h-64 rounded-card" />
           ) : (
-            <PotentialSavingsCard savings={aiData?.potentialSavings} />
+            <Suspense fallback={<Skeleton className="h-64 rounded-card animate-pulse" />}>
+              <PotentialSavingsCard savings={aiData?.potentialSavings} />
+            </Suspense>
           )}
         </div>
       </div>
 
-      <RecentNotifications notifications={notifications} loading={loading} />
+      <Suspense fallback={<Skeleton className="h-48 rounded-card animate-pulse" />}>
+        <RecentNotifications notifications={notifications} loading={loading} />
+      </Suspense>
     </div>
   );
 };

@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
 import { useLocation, useRoutes } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -21,9 +20,19 @@ export default function App() {
   const location = useLocation();
   const element = useRoutes(routes, location);
 
-  // Initialize GA4 once when the application starts
+  // Initialize GA4 once when the application starts and main thread is idle
   useEffect(() => {
-    initGA();
+    if (typeof window !== 'undefined') {
+      if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(() => {
+          initGA();
+        });
+      } else {
+        setTimeout(() => {
+          initGA();
+        }, 1500);
+      }
+    }
   }, []);
 
   // Automatically track page views using React Router location
@@ -51,11 +60,9 @@ export default function App() {
           <button onClick={() => window.location.reload()} className="rounded bg-blue px-4 py-2 text-sm font-semibold text-white">Reload</button>
         </div>
       }>
-        <AnimatePresence mode="wait">
-          <motion.div key={location.pathname} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.35, ease: 'easeOut' }}>
-            {element}
-          </motion.div>
-        </AnimatePresence>
+        <div key={location.pathname} className="animate-page-enter">
+          {element}
+        </div>
         <Toaster position="top-right" toastOptions={{ style: { background: '#131920', color: '#f1f5f9', border: '1px solid #243044' } }} />
       </ErrorBoundary>
       <SpeedInsights />

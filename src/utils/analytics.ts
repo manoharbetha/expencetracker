@@ -1,27 +1,37 @@
-import ReactGA from 'react-ga4';
-
 // Read GA4 Measurement ID from environment variables
 const MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID;
 
+let ReactGA: any = null;
 let isInitialized = false;
+let isInitializing = false;
+let queue: Array<() => void> = [];
 
 /**
- * Initializes Google Analytics 4 safely.
+ * Initializes Google Analytics 4 safely using dynamic imports to optimize bundle size.
  */
-export const initGA = () => {
-  if (isInitialized) return;
+export const initGA = async () => {
+  if (isInitialized || isInitializing) return;
 
   if (!MEASUREMENT_ID) {
     console.warn('GA4: VITE_GA_MEASUREMENT_ID is not configured. Analytics will run in log-only mode.');
     return;
   }
 
+  isInitializing = true;
   try {
+    const module = await import('react-ga4');
+    ReactGA = module.default;
     ReactGA.initialize(MEASUREMENT_ID);
     isInitialized = true;
     console.log('GA4: Initialized successfully with ID:', MEASUREMENT_ID);
+    
+    // Process queue
+    queue.forEach((fn) => fn());
+    queue = [];
   } catch (error) {
     console.error('GA4: Initialization failed:', error);
+  } finally {
+    isInitializing = false;
   }
 };
 
@@ -30,10 +40,13 @@ export const initGA = () => {
  */
 export const trackPageView = (path: string) => {
   const cleanPath = path.split('?')[0];
-  if (isInitialized) {
+  if (isInitialized && ReactGA) {
     ReactGA.send({ hitType: 'pageview', page: cleanPath });
   } else {
-    console.log(`GA4 [Log PageView]: ${cleanPath}`);
+    queue.push(() => {
+      if (ReactGA) ReactGA.send({ hitType: 'pageview', page: cleanPath });
+    });
+    console.log(`GA4 [Log PageView (Queued)]: ${cleanPath}`);
   }
 };
 
@@ -59,10 +72,13 @@ const sanitizeParams = (params?: Record<string, any>): Record<string, any> | und
  */
 export const trackEvent = (eventName: string, params?: Record<string, any>) => {
   const cleanParams = sanitizeParams(params);
-  if (isInitialized) {
+  if (isInitialized && ReactGA) {
     ReactGA.event(eventName, cleanParams);
   } else {
-    console.log(`GA4 [Log Event]: ${eventName}`, cleanParams);
+    queue.push(() => {
+      if (ReactGA) ReactGA.event(eventName, cleanParams);
+    });
+    console.log(`GA4 [Log Event (Queued)]: ${eventName}`, cleanParams);
   }
 };
 
