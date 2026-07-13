@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { CreditCard as CardIcon, Save, Plus, Landmark, Calendar, AlertCircle, Trash2 } from 'lucide-react';
-import { creditCardService, type CreditCardCreatePayload } from '../services/creditCardService';
+import { creditCardService } from '../services/creditCardService';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 import { formatCurrency, formatDate } from '../utils/formatters';
-import type { CreditCard } from '../types';
+import type { CreditCard, CreditCardCreatePayload } from '../types';
 import { trackEvent } from '../utils/analytics';
 
 export const CreditCardPage = () => {

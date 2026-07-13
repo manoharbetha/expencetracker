@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { authService, type User } from '../services/authService';
+import { authService } from '../services/authService';
+import { User } from '../types';
 import api from '../services/api';
 
 interface AuthContextValue {

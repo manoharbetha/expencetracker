@@ -21,3 +21,12 @@ export interface ChartDatum {
   Entertainment?: number;
   value?: number;
 }
+
+export type InsightType = 'positive' | 'warning' | 'suggestion';
+
+export interface Insight {
+  id: string;
+  type: InsightType;
+  title: string;
+  message: string;
+}

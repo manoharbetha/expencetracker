@@ -1,6 +1,6 @@
 import { Skeleton } from '../../components/ui/Skeleton';
 import { GoalCard } from '../cards/GoalCard';
-import type { Goal } from '../../services/goalService';
+import type { Goal } from '../../types';
 
 interface GoalProgressProps {
   goals: Goal[];

@@ -2,7 +2,7 @@ import { PiggyBank, Receipt, BarChart3, Target } from 'lucide-react';
 import { SummaryCard } from '../cards/SummaryCard';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { formatCurrency } from '../../utils/formatters';
-import type { DashboardData } from '../../services/analyticsService';
+import type { DashboardData } from '../../types';
 
 interface FinancialOverviewProps {
   dash: DashboardData | null;

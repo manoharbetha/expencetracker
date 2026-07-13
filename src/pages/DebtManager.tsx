@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Plus, Trash2, Pencil, CreditCard, Calendar, TrendingDown } from 'lucide-react';
-import { debtService, type Debt, type DebtCreate } from '../services/debtService';
+import { debtService } from '../services/debtService';
+import { Debt, DebtCreate } from '../types';
 import { formatCurrency, formatDate } from '../utils/formatters';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';

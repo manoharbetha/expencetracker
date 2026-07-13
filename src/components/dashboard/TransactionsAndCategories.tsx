@@ -1,7 +1,6 @@
 import { Skeleton } from '../../components/ui/Skeleton';
 import { formatCurrency, formatDate } from '../../utils/formatters';
-import type { Expense } from '../../services/expenseService';
-import type { DashboardData } from '../../services/analyticsService';
+import type { Expense, DashboardData } from '../../types';
 
 interface TransactionsAndCategoriesProps {
   expenses: Expense[];

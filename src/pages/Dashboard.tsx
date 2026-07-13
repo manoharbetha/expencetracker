@@ -15,7 +15,8 @@ import { PotentialSavingsCard } from '../components/dashboard/PotentialSavingsCa
 import { RecentNotifications } from '../components/dashboard/RecentNotifications';
 import { ErrorBoundary } from '../components/ui/ErrorBoundary';
 
-import { analyticsService, type DashboardData } from '../services/analyticsService';
+import { analyticsService } from '../services/analyticsService';
+import { DashboardData } from '../types';
 import { expenseService } from '../services/expenseService';
 import { goalService } from '../services/goalService';
 import { notificationService } from '../services/notificationService';

@@ -2,7 +2,7 @@ import { CreditCard as CardIcon } from 'lucide-react';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { Button } from '../../components/ui/Button';
 import { formatCurrency } from '../../utils/formatters';
-import type { DashboardData } from '../../services/analyticsService';
+import type { DashboardData } from '../../types';
 
 interface CreditCardWidgetProps {
   dash: DashboardData | null;
