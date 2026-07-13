@@ -88,6 +88,22 @@ Review the [SECURITY.md](docs/SECURITY.md) guidelines for full details.
 
 ---
 
+## 👥 Team & Contributions
+
+Fintell was developed as a collaborative team project. Each member was responsible for a core area of the application.
+
+| Team Member | Role | Responsibilities | Technologies |
+|-------------|------|------------------|--------------|
+| **Pardhu** | 🎨 Frontend Developer | Designed the user interface, built the dashboard, authentication pages, responsive layouts, and interactive charts. | React, TypeScript, Tailwind CSS |
+| **Manohar Betha** | ⚙️ Backend Developer | Developed the FastAPI backend, designed REST APIs, implemented JWT authentication, and built expense & financial management services. | FastAPI, Python, JWT |
+| **Amrutha** | 🗄️ Database & Security Engineer | Managed MongoDB database design, user & expense storage, database connectivity, and password security. | MongoDB Atlas, bcrypt |
+| **Chandu** | 🤖 AI/ML Developer | Developed AI-powered expense categorization, budget prediction, financial insights, and intelligent chatbot features. | Pandas, Scikit-learn, OpenAI API |
+| **Sonu** | 🚀 Testing & Deployment Engineer | Performed application testing, fixed bugs, managed deployment, and prepared project documentation. | Postman, Vercel, Render, GitHub |
+
+### Collaboration Workflow
+
+---
+
 ## 📖 Project Documentation
 
 Detailed architecture maps, design tradeoffs, and code walkthroughs are available inside the `/docs` folder:
