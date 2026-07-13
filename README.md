@@ -1,6 +1,6 @@
 # Fintell — AI-Powered Financial Intelligence Cockpit
 
-Fintell is a production-ready, AI-driven personal finance application that helps users track expenses, manage credit card debt, auto-ingest transactions from PDF statements, and receive intelligent financial warnings and coaching. 
+Fintell is a production-ready, AI-driven personal finance application that helps users track expenses, manage credit card debt, auto-ingest transactions from PDF statements, and receive intelligent financial warnings and coaching.
 
 ---
 
