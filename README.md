@@ -100,7 +100,7 @@ Fintell was developed as a collaborative team project. Each member was responsib
 | **Chandu** | 🤖 AI/ML Developer | Developed AI-powered expense categorization, budget prediction, financial insights, and intelligent chatbot features. | Pandas, Scikit-learn, OpenAI API |
 | **Sonu** | 🚀 Testing & Deployment Engineer | Performed application testing, fixed bugs, managed deployment, and prepared project documentation. | Postman, Vercel, Render, GitHub |
 
-### Collaboration Workflow
+
 
 ---
 
