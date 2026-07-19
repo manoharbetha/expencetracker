@@ -10,6 +10,7 @@ from app.db.mongodb import get_db
 from app.db.crud import create_doc, get_doc, update_doc, delete_doc, serialize_doc
 from app.services.fcm_service import send_to_user, check_budget_notifications, check_credit_card_utilization_notifications
 from app.services.ai_financial_coach import invalidate_insights_cache
+from app.schemas import ExpenseCreate, ExpenseUpdate, MessageResponse
 
 router = APIRouter()
 
